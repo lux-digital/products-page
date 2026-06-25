@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panorama Viewer</title>
+
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: Arial, sans-serif;
+    }
+
+    #viewer {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+      overflow: hidden;
+      background: #000;
+      touch-action: none;
+      user-select: none;
+    }
+
+    #viewer.dragging {
+      cursor: grabbing;
+    }
+
+    #panoramaStrip {
+      position: absolute;
+      left: 0;
+      top: var(--pano-strip-top, 0px);
+      height: var(--pano-frame-height, 100vh);
+      display: flex;
+      filter: brightness(var(--pano-brightness, 1.2));
+      will-change: transform, filter;
+    }
+
+    .panoFrame {
+      position: relative;
+      height: var(--pano-frame-height, 100vh);
+      flex: 0 0 var(--pano-frame-width, calc(100vh * 16 / 9));
+      background-position: center center;
+      background-size: 100% 100%;
+      background-repeat: no-repeat;
+    }
+
+    .hotspot {
+      position: absolute;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: rgba(128,128,128,0.3);
+      border: 1px solid rgba(160,160,160,0.72);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      transform: translate(-50%, -50%) scale(var(--hotspot-scale, 0.42));
+      transform-origin: center center;
+      cursor: pointer;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0;
+      line-height: 1;
+      user-select: none;
+      transition: transform 0.28s ease-in-out, opacity 0.22s ease, background 0.22s ease;
+      will-change: transform, opacity;
+      overflow: visible;
+    }
+
+    .hotspot::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.62);
+      transform: translate(-50%, -50%) scale(0.72);
+      opacity: 0.82;
+      pointer-events: none;
+      z-index: 1;
+      animation: hotspotPulse 2.85s ease-out infinite;
+    }
+
+    @keyframes hotspotPulse {
+      0% {
+        transform: translate(-50%, -50%) scale(0.72);
+        opacity: 0.82;
+      }
+      42% {
+        transform: translate(-50%, -50%) scale(2.15);
+        opacity: 0;
+      }
+      100% {
+        transform: translate(-50%, -50%) scale(2.15);
+        opacity: 0;
+      }
+    }
+
+    .hotspot::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.94);
+      box-shadow: 0 2px 9px rgba(0,0,0,0.28);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .hotspotLabel {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform:
+        translate(-50%, calc(-50% - var(--label-distance, 52px)))
+        scale(var(--label-counter-scale, 1));
+      transform-origin: center center;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
+      opacity: var(--hotspot-label-opacity, 0);
+      pointer-events: none;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.65);
+      transition: opacity 0.16s ease;
+      will-change: transform, opacity;
+      z-index: 3;
+    }
+
+    .hotspot:hover {
+      background: rgba(150,150,150,0.38);
+    }
+
+    #frameButtons {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%);
+      z-index: 15;
+      display: flex;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      opacity: 1;
+      pointer-events: auto;
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+
+    #frameButtons.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(-50%) translateY(12px);
+    }
+
+    .frameButton {
+      min-width: 126px;
+      height: 42px;
+      padding: 0 18px;
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.86);
+      color: #111;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.035em;
+      cursor: pointer;
+      white-space: nowrap;
+      transition:
+        transform 0.22s ease,
+        background 0.22s ease,
+        color 0.22s ease,
+        border-color 0.22s ease;
+    }
+
+    .frameButton:hover {
+      transform: scale(1.12);
+      background: #fff;
+      border-color: rgba(255,255,255,0.8);
+    }
+
+    .frameButton.active {
+      background: #111;
+      color: #fff;
+      border-color: rgba(255,255,255,0.7);
+    }
+
+    #sequenceBackButton {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%);
+      z-index: 16;
+      display: none;
+      padding: 13px 26px;
+      border: none;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.94);
+      color: #111;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.28);
+      transition: transform 0.22s ease, opacity 0.22s ease;
+    }
+
+    #sequenceBackButton:hover {
+      transform: translateX(-50%) scale(1.06);
+    }
+
+    #infoBox {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(420px, 86vw);
+      padding: 28px;
+      background: rgba(255,255,255,0.95);
+      color: #111;
+      border-radius: 18px;
+      z-index: 20;
+      display: none;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      text-align: center;
+    }
+
+    #closeInfo {
+      margin-top: 20px;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 999px;
+      background: #111;
+      color: white;
+      cursor: pointer;
+    }
+
+
+    #brightnessControl {
+      position: fixed;
+      right: 24px;
+      bottom: 28px;
+      z-index: 18;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 13px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.045em;
+      user-select: none;
+      pointer-events: auto;
+    }
+
+    #brightnessSlider {
+      width: 145px;
+      accent-color: #fff;
+      cursor: pointer;
+    }
+
+    @media (max-width: 600px) {
+      #frameButtons {
+        bottom: 18px;
+        gap: 6px;
+        padding: 8px 9px;
+      }
+
+      .frameButton {
+        min-width: auto;
+        height: 34px;
+        padding: 0 10px;
+        font-size: 9px;
+      }
+
+      #sequenceBackButton {
+        bottom: 18px;
+        padding: 11px 22px;
+        font-size: 13px;
+      }
+
+      #brightnessControl {
+        right: 14px;
+        bottom: 70px;
+        padding: 8px 10px;
+        font-size: 9px;
+      }
+
+      #brightnessSlider {
+        width: 105px;
+      }
+
+    }
+  </style>
+</head>
+
+<body>
+  <div id="viewer">
+    <div id="panoramaStrip"></div>
+  </div>
+
+  <!-- Hotspots -->
+  <button class="hotspot" id="hotspot1" aria-label="RANDOM PLANK">
+    <span class="hotspotLabel">RANDOM PLANK</span>
+  </button>
+  <button class="hotspot" id="hotspot2" aria-label="BOARD + BATTEN">
+    <span class="hotspotLabel">BOARD + BATTEN</span>
+  </button>
+  <button class="hotspot" id="hotspot3" aria-label="BOARD + BATTEN">
+    <span class="hotspotLabel">BOARD + BATTEN</span>
+  </button>
+  <button class="hotspot" id="hotspot4" aria-label="CUSTOM CUT">
+    <span class="hotspotLabel">CUSTOM CUT</span>
+  </button>
+  <button class="hotspot" id="hotspot5" aria-label="NEO LUMBER">
+    <span class="hotspotLabel">NEO LUMBER</span>
+  </button>
+
+  <button id="sequenceBackButton">BACK</button>
+
+  <div id="brightnessControl" aria-label="Brightness control">
+    <span>BRIGHTNESS</span>
+    <input id="brightnessSlider" type="range" min="0.5" max="1.5" step="0.01" value="1.2" aria-label="Adjust brightness" />
+  </div>
+
+  <div id="frameButtons">
+    <button class="frameButton" data-frame="0">RANDOM PLANK</button>
+    <button class="frameButton" data-frame="1">BOARD + BATTEN</button>
+    <button class="frameButton" data-frame="2">NEO LUMER</button>
+  </div>
+
+  <div id="infoBox">
+    <h2 id="infoTitle">Hotspot</h2>
+    <p id="infoText">This is where your hotspot content will go.</p>
+    <button id="closeInfo">Close</button>
+  </div>
+
+  <script>
+    const container = document.getElementById("viewer");
+    const panoramaStrip = document.getElementById("panoramaStrip");
+    const frameButtonsWrapper = document.getElementById("frameButtons");
+    const frameButtons = Array.from(document.querySelectorAll(".frameButton"));
+    const sequenceBackButton = document.getElementById("sequenceBackButton");
+    const infoBox = document.getElementById("infoBox");
+    const brightnessControl = document.getElementById("brightnessControl");
+    const brightnessSlider = document.getElementById("brightnessSlider");
+
+    const frameFolder = "180";
+    const frameCount = 3;
+    const panoFrameAspectRatio = 16 / 9;
+
+    const frames = Array.from({ length: frameCount }, (_, i) => {
+      return `${frameFolder}/frame${String(i).padStart(4, "0")}.jpg`;
+    });
+
+    /*
+      Sequence setup.
+      Button numbers are one higher than frame indexes:
+      - Button 1 = frame index 0 = RANDOM PLANK sequence
+      - Button 2 = frame index 1 = BOARD + BATTEN sequence
+      - Button 3 = frame index 2 = NEO LUMBER sequence
+
+      To add more later, add another object here with:
+      frame, hotspotText, folder, prefix, count
+    */
+    const sequenceConfigs = [
+      {
+        key: "randomPlank",
+        frame: 0,
+        hotspotText: "RANDOM PLANK",
+        folder: "RP",
+        prefix: "RP",
+        count: 58,
+        pad: 2,
+        extension: "jpg",
+        fps: 24
+      },
+      {
+        key: "boardBatten",
+        frame: 1,
+        hotspotText: "BOARD + BATTEN",
+        folder: "B+B",
+        prefix: "B+B",
+        count: 58,
+        pad: 2,
+        extension: "jpg",
+        fps: 24
+      },
+      {
+        key: "neoLumber",
+        frame: 2,
+        hotspotText: "NEO LUMBER",
+        folder: "Neo",
+        prefix: "Neo",
+        count: 75,
+        pad: 2,
+        extension: "jpg",
+        fps: 24
+      }
+    ];
+
+    const sequenceByFrame = new Map();
+    const sequenceByHotspotText = new Map();
+
+    sequenceConfigs.forEach((config) => {
+      config.frames = Array.from({ length: config.count }, (_, i) => {
+        return `${config.folder}/${config.prefix}${String(i).padStart(config.pad, "0")}.${config.extension}`;
+      });
+
+      config.imagesReady = false;
+      config.imagesLoading = false;
+      config.imageElements = [];
+
+      sequenceByFrame.set(config.frame, config);
+      sequenceByHotspotText.set(config.hotspotText.trim().toUpperCase(), config);
+    });
+
+    let autoRotate = true;
+    let isDragging = false;
+    let hotspotsVisible = true;
+
+    let currentOffset = 0;
+    let targetOffset = 0;
+    let panVelocity = 0;
+
+    let previousMouseX = 0;
+    let hasDraggedThisGesture = false;
+
+    const cameraEase = 0.075;
+    const dragFriction = 0.94;
+    const dragSensitivity = 1.0;
+    const autoRotateSpeed = 0.35;
+    const autoRotateResumeDelay = 3000;
+
+    let frameWidth = getPanoFrameSize().width;
+    let frameHeight = getPanoFrameSize().height;
+    let panoStripTop = getPanoFrameSize().top;
+    let totalWidth = frameWidth * frameCount;
+
+    /*
+      Smooth ease-in/ease-out for button camera moves.
+    */
+    let buttonTweenActive = false;
+    let buttonTweenStartOffset = 0;
+    let buttonTweenEndOffset = 0;
+    let buttonTweenStartTime = 0;
+    const buttonTweenDuration = 2400;
+    const buttonSettleDelay = 250;
+    let buttonArrivalCallback = null;
+    let buttonArrivalTimeout = null;
+
+    /*
+      Reusable sequence animation state.
+    */
+    let panoFrameCopies = Array.from({ length: frameCount }, () => []);
+    let activeSequence = null;
+    let sequenceCurrentIndex = 0;
+    let sequencePlaying = false;
+    let sequenceDirection = 1;
+    let sequenceRAF = null;
+    let sequenceLastTime = 0;
+
+    let autoRotateRestartTimeout = null;
+
+    function getPanoFrameSize() {
+      /*
+        Never stretch the renders.
+        This calculates a true 16:9 frame that is zoomed enough to cover the viewer.
+        If the browser becomes wider than 16:9, the frame gets wider and taller,
+        then crops vertically instead of distorting the image.
+      */
+      const widthByHeight = window.innerHeight * panoFrameAspectRatio;
+      const width = Math.max(window.innerWidth, widthByHeight);
+      const height = width / panoFrameAspectRatio;
+      const top = (window.innerHeight - height) / 2;
+
+      return { width, height, top };
+    }
+
+    function syncPanoFrameWidthCSS() {
+      const size = getPanoFrameSize();
+
+      frameWidth = size.width;
+      frameHeight = size.height;
+      panoStripTop = size.top;
+      totalWidth = frameWidth * frameCount;
+
+      document.documentElement.style.setProperty("--pano-frame-width", `${frameWidth}px`);
+      document.documentElement.style.setProperty("--pano-frame-height", `${frameHeight}px`);
+      document.documentElement.style.setProperty("--pano-strip-top", `${panoStripTop}px`);
+    }
+
+    function easeInOutQuint(t) {
+      return t < 0.5
+        ? 16 * t * t * t * t * t
+        : 1 - Math.pow(-2 * t + 2, 5) / 2;
+    }
+
+    function smoothBellFromCenter(centerStrength) {
+      const t = Math.max(0, Math.min(centerStrength, 1));
+      return 0.5 - 0.5 * Math.cos(Math.PI * t);
+    }
+
+    function clearPendingArrivalCallback() {
+      if (buttonArrivalTimeout) {
+        clearTimeout(buttonArrivalTimeout);
+        buttonArrivalTimeout = null;
+      }
+
+      buttonArrivalCallback = null;
+    }
+
+    function clearAutoRotateRestart() {
+      if (autoRotateRestartTimeout) {
+        clearTimeout(autoRotateRestartTimeout);
+        autoRotateRestartTimeout = null;
+      }
+    }
+
+    function scheduleAutoRotateResume(delay = autoRotateResumeDelay) {
+      clearAutoRotateRestart();
+
+      autoRotateRestartTimeout = setTimeout(() => {
+        autoRotateRestartTimeout = null;
+
+        if (!isDragging && !buttonTweenActive && !sequencePlaying) {
+          autoRotate = true;
+        }
+      }, delay);
+    }
+
+    function setFrameButtonsVisible(visible) {
+      frameButtonsWrapper.classList.toggle("hidden", !visible);
+    }
+
+    function showBackButton(show) {
+      sequenceBackButton.style.display = show ? "block" : "none";
+    }
+
+    function setHotspotsVisible(visible) {
+      hotspotsVisible = visible;
+
+      if (!visible) {
+        hotspots.forEach((hotspot) => {
+          hotspot.element.style.opacity = "0";
+          hotspot.element.style.pointerEvents = "none";
+        });
+      }
+    }
+
+    async function preloadSequence(config) {
+      if (!config || config.imagesReady || config.imagesLoading) return;
+
+      config.imagesLoading = true;
+      config.imagesReady = false;
+
+      config.imageElements = config.frames.map((src) => {
+        const img = new Image();
+        img.src = src;
+        return img;
+      });
+
+      await Promise.all(
+        config.imageElements.map((img) => {
+          if (img.complete) {
+            return img.decode ? img.decode().catch(() => {}) : Promise.resolve();
+          }
+
+          return new Promise((resolve) => {
+            img.onload = async () => {
+              if (img.decode) {
+                try {
+                  await img.decode();
+                } catch (error) {}
+              }
+              resolve();
+            };
+
+            img.onerror = resolve;
+          });
+        })
+      );
+
+      config.imagesReady = true;
+      config.imagesLoading = false;
+    }
+
+    function preloadAllSequences() {
+      sequenceConfigs.forEach((config) => preloadSequence(config));
+    }
+
+    function buildPanoramaStrip() {
+      panoramaStrip.innerHTML = "";
+      panoFrameCopies = Array.from({ length: frameCount }, () => []);
+
+      for (let repeat = 0; repeat < 3; repeat++) {
+        frames.forEach((src, frameIndex) => {
+          const frame = document.createElement("div");
+          frame.className = "panoFrame";
+          frame.dataset.frameIndex = frameIndex;
+          frame.style.backgroundImage = `url("${src}")`;
+          panoramaStrip.appendChild(frame);
+          panoFrameCopies[frameIndex].push(frame);
+        });
+      }
+
+      syncPanoFrameWidthCSS();
+
+      currentOffset = totalWidth;
+      targetOffset = totalWidth;
+
+      updateActiveFrameButton();
+    }
+
+    const hotspots = [
+      {
+        element: document.getElementById("hotspot1"),
+        label: "RANDOM PLANK",
+        frame: 0,
+        x: 43.38,
+        y: 64.12,
+        title: "RANDOM PLANK",
+        text: "RANDOM PLANK"
+      },
+      {
+        element: document.getElementById("hotspot2"),
+        label: "BOARD + BATTEN",
+        frame: 1,
+        x: 63.2,
+        y: 57.82,
+        title: "BOARD + BATTEN",
+        text: "BOARD + BATTEN"
+      },
+      {
+        element: document.getElementById("hotspot3"),
+        label: "BOARD + BATTEN",
+        frame: 1,
+        x: 4.92,
+        y: 24.68,
+        title: "BOARD + BATTEN",
+        text: "BOARD + BATTEN"
+      },
+      {
+        element: document.getElementById("hotspot4"),
+        label: "CUSTOM CUT",
+        frame: 1,
+        x: 64.57,
+        y: 20.05,
+        title: "CUSTOM CUT",
+        text: "CUSTOM CUT"
+      },
+      {
+        element: document.getElementById("hotspot5"),
+        label: "NEO LUMBER",
+        frame: 2,
+        x: 44.12,
+        y: 46.23,
+        title: "NEO LUMBER",
+        text: "NEO LUMBER"
+      }
+    ];
+
+    hotspots.forEach((hotspot) => {
+      const displayName = hotspot.label || hotspot.title;
+      const label = hotspot.element.querySelector(".hotspotLabel");
+      if (label) label.textContent = displayName;
+      hotspot.element.setAttribute("aria-label", displayName);
+    });
+
+    function getClosestOffsetForFrame(frameIndex) {
+      const desiredOffsetInMiddleCopy = totalWidth + frameIndex * frameWidth;
+
+      let closestOffset = desiredOffsetInMiddleCopy;
+      let closestDistance = Infinity;
+
+      for (let repeatOffset = -totalWidth; repeatOffset <= totalWidth; repeatOffset += totalWidth) {
+        const candidateOffset = desiredOffsetInMiddleCopy + repeatOffset;
+        const distance = Math.abs(candidateOffset - currentOffset);
+
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestOffset = candidateOffset;
+        }
+      }
+
+      return closestOffset;
+    }
+
+    function moveToFrame(frameIndex, onArrive = null) {
+      autoRotate = false;
+      isDragging = false;
+      panVelocity = 0;
+
+      clearAutoRotateRestart();
+      clearPendingArrivalCallback();
+
+      container.classList.remove("dragging");
+
+      buttonTweenActive = true;
+      buttonTweenStartOffset = currentOffset;
+      buttonTweenEndOffset = getClosestOffsetForFrame(frameIndex);
+      buttonTweenStartTime = performance.now();
+      buttonArrivalCallback = onArrive;
+
+      setActiveFrameButton(frameIndex);
+    }
+
+    function updateButtonTween() {
+      if (!buttonTweenActive) return;
+
+      const elapsed = performance.now() - buttonTweenStartTime;
+      const progress = Math.min(elapsed / buttonTweenDuration, 1);
+      const easedProgress = easeInOutQuint(progress);
+
+      currentOffset =
+        buttonTweenStartOffset +
+        (buttonTweenEndOffset - buttonTweenStartOffset) * easedProgress;
+
+      targetOffset = currentOffset;
+
+      if (progress >= 1) {
+        buttonTweenActive = false;
+        targetOffset = buttonTweenEndOffset;
+        currentOffset = buttonTweenEndOffset;
+
+        if (buttonArrivalCallback) {
+          const callback = buttonArrivalCallback;
+          buttonArrivalCallback = null;
+
+          buttonArrivalTimeout = setTimeout(() => {
+            buttonArrivalTimeout = null;
+            callback();
+          }, buttonSettleDelay);
+        }
+      }
+    }
+
+    function updatePanorama() {
+      if (buttonTweenActive) {
+        updateButtonTween();
+      } else {
+        currentOffset += (targetOffset - currentOffset) * cameraEase;
+      }
+
+      panoramaStrip.style.transform = `translate3d(${-currentOffset}px, 0, 0)`;
+    }
+
+    function updateHotspots() {
+      hotspots.forEach((hotspot) => {
+        const hotspotBaseX =
+          hotspot.frame * frameWidth +
+          (hotspot.x / 100) * frameWidth;
+
+        let bestScreenX = 0;
+        let bestDistance = Infinity;
+
+        for (let repeat = 0; repeat < 3; repeat++) {
+          const worldX = hotspotBaseX + repeat * totalWidth;
+          const screenX = worldX - currentOffset;
+          const distance = Math.abs(screenX - window.innerWidth / 2);
+
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestScreenX = screenX;
+          }
+        }
+
+        const screenY = panoStripTop + (hotspot.y / 100) * frameHeight;
+
+        const visible =
+          hotspotsVisible &&
+          bestScreenX > -80 &&
+          bestScreenX < window.innerWidth + 80 &&
+          screenY > -80 &&
+          screenY < window.innerHeight + 80;
+
+        const maxDistance = window.innerWidth / 2;
+        const normalizedDistance = Math.min(bestDistance / maxDistance, 1);
+        const centerStrength = 1 - normalizedDistance;
+
+        /*
+          This is the bell-curve behaviour from your sketch:
+          small on the left, smoothly largest in the center,
+          then smoothly small again on the right.
+        */
+        const scaleCurve = smoothBellFromCenter(centerStrength);
+        const scale = 0.38 + scaleCurve * 1.35;
+
+        /*
+          The label is attached to the hotspot's centre pivot.
+          The parent hotspot scales up, so the label naturally travels farther
+          above the hotspot as it reaches the centre.
+          Counter-scale keeps the text size visually consistent.
+        */
+        const labelOpacity = Math.pow(centerStrength, 1.85);
+        const labelCounterScale = 1 / scale;
+        const labelDistance = 52;
+
+        hotspot.element.style.left = `${bestScreenX}px`;
+        hotspot.element.style.top = `${screenY}px`;
+        hotspot.element.style.opacity = visible ? "1" : "0";
+        hotspot.element.style.pointerEvents = visible ? "auto" : "none";
+        hotspot.element.style.setProperty("--hotspot-scale", scale.toFixed(3));
+        hotspot.element.style.setProperty("--hotspot-label-opacity", labelOpacity.toFixed(3));
+        hotspot.element.style.setProperty("--label-counter-scale", labelCounterScale.toFixed(4));
+        hotspot.element.style.setProperty("--label-distance", `${labelDistance}px`);
+      });
+    }
+
+    function getCurrentFrameIndex() {
+      const normalizedOffset =
+        ((currentOffset % totalWidth) + totalWidth) % totalWidth;
+
+      return Math.round(normalizedOffset / frameWidth) % frameCount;
+    }
+
+    function setActiveFrameButton(frameIndex) {
+      frameButtons.forEach((button) => {
+        const buttonFrame = Number(button.dataset.frame);
+        button.classList.toggle("active", buttonFrame === frameIndex);
+      });
+    }
+
+    function updateActiveFrameButton() {
+      if (buttonTweenActive || isDragging || autoRotate || sequencePlaying) return;
+      setActiveFrameButton(getCurrentFrameIndex());
+    }
+
+    function wrapOffsetsIfNeeded() {
+      if (currentOffset > totalWidth * 2) {
+        currentOffset -= totalWidth;
+        targetOffset -= totalWidth;
+
+        if (buttonTweenActive) {
+          buttonTweenStartOffset -= totalWidth;
+          buttonTweenEndOffset -= totalWidth;
+        }
+      }
+
+      if (currentOffset < totalWidth * 0.5) {
+        currentOffset += totalWidth;
+        targetOffset += totalWidth;
+
+        if (buttonTweenActive) {
+          buttonTweenStartOffset += totalWidth;
+          buttonTweenEndOffset += totalWidth;
+        }
+      }
+    }
+
+    function applySequenceFrame(config, index) {
+      const img = config.imageElements[index];
+      const src = img ? img.src : config.frames[index];
+
+      panoFrameCopies[config.frame].forEach((frameEl) => {
+        frameEl.style.backgroundImage = `url("${src}")`;
+      });
+    }
+
+    function resetSequenceFrameToDefault(config) {
+      const src = frames[config.frame];
+
+      panoFrameCopies[config.frame].forEach((frameEl) => {
+        frameEl.style.backgroundImage = `url("${src}")`;
+      });
+    }
+
+    function stopSequencePlayback() {
+      sequencePlaying = false;
+
+      if (sequenceRAF) {
+        cancelAnimationFrame(sequenceRAF);
+        sequenceRAF = null;
+      }
+    }
+
+    function finishSequencePlayback() {
+      stopSequencePlayback();
+
+      if (!activeSequence) return;
+
+      if (sequenceDirection === 1) {
+        /*
+          Forward animation finished:
+          pause on the last frame, keep hotspots/buttons hidden, show only BACK.
+        */
+        showBackButton(true);
+        setFrameButtonsVisible(false);
+        setHotspotsVisible(false);
+      } else {
+        /*
+          Reverse animation finished:
+          restore the normal panorama frame, bring controls/hotspots back,
+          wait 3 seconds, then continue the default pan.
+        */
+        const finishedSequence = activeSequence;
+        activeSequence = null;
+
+        showBackButton(false);
+        setFrameButtonsVisible(true);
+        resetSequenceFrameToDefault(finishedSequence);
+        setHotspotsVisible(true);
+
+        scheduleAutoRotateResume(3000);
+      }
+    }
+
+    function sequenceStep(now) {
+      if (!sequencePlaying || !activeSequence) return;
+
+      if (!sequenceLastTime) {
+        sequenceLastTime = now;
+      }
+
+      const frameDuration = 1000 / (activeSequence.fps || 24);
+      let shouldFinish = false;
+
+      while (now - sequenceLastTime >= frameDuration) {
+        sequenceLastTime += frameDuration;
+
+        const nextIndex = sequenceCurrentIndex + sequenceDirection;
+
+        if (nextIndex < 0) {
+          sequenceCurrentIndex = 0;
+          applySequenceFrame(activeSequence, sequenceCurrentIndex);
+          shouldFinish = true;
+          break;
+        }
+
+        if (nextIndex >= activeSequence.frames.length) {
+          sequenceCurrentIndex = activeSequence.frames.length - 1;
+          applySequenceFrame(activeSequence, sequenceCurrentIndex);
+          shouldFinish = true;
+          break;
+        }
+
+        sequenceCurrentIndex = nextIndex;
+        applySequenceFrame(activeSequence, sequenceCurrentIndex);
+      }
+
+      if (shouldFinish) {
+        finishSequencePlayback();
+        return;
+      }
+
+      sequenceRAF = requestAnimationFrame(sequenceStep);
+    }
+
+    async function playSequence(config, direction = 1) {
+      if (!config || sequencePlaying) return;
+
+      if (!config.imagesReady) {
+        await preloadSequence(config);
+      }
+
+      activeSequence = config;
+      autoRotate = false;
+      panVelocity = 0;
+      clearAutoRotateRestart();
+      clearPendingArrivalCallback();
+
+      sequenceDirection = direction;
+      sequencePlaying = true;
+      sequenceLastTime = 0;
+
+      setFrameButtonsVisible(false);
+      showBackButton(false);
+      setHotspotsVisible(false);
+
+      if (direction === 1) {
+        sequenceCurrentIndex = 0;
+      } else {
+        sequenceCurrentIndex = config.frames.length - 1;
+      }
+
+      applySequenceFrame(config, sequenceCurrentIndex);
+      sequenceRAF = requestAnimationFrame(sequenceStep);
+    }
+
+    function startConfiguredSequence(config) {
+      if (!config || sequencePlaying) return;
+
+      infoBox.style.display = "none";
+      showBackButton(false);
+      clearAutoRotateRestart();
+      clearPendingArrivalCallback();
+
+      moveToFrame(config.frame, () => {
+        playSequence(config, 1);
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (autoRotate && !isDragging && !buttonTweenActive && !sequencePlaying) {
+        targetOffset += autoRotateSpeed;
+      }
+
+      if (!isDragging && !buttonTweenActive && !sequencePlaying) {
+        targetOffset += panVelocity;
+        panVelocity *= dragFriction;
+
+        if (Math.abs(panVelocity) < 0.001) {
+          panVelocity = 0;
+        }
+      }
+
+      updatePanorama();
+      updateHotspots();
+      wrapOffsetsIfNeeded();
+      updateActiveFrameButton();
+    }
+
+    container.addEventListener("pointerdown", (event) => {
+      if (sequencePlaying || activeSequence) return;
+
+      isDragging = true;
+      autoRotate = false;
+      buttonTweenActive = false;
+
+      clearAutoRotateRestart();
+      clearPendingArrivalCallback();
+
+      panVelocity = 0;
+      hasDraggedThisGesture = false;
+      previousMouseX = event.clientX;
+
+      container.classList.add("dragging");
+      container.setPointerCapture(event.pointerId);
+    });
+
+    container.addEventListener("pointermove", (event) => {
+      if (!isDragging || sequencePlaying || activeSequence) return;
+
+      const deltaX = event.clientX - previousMouseX;
+
+      if (Math.abs(deltaX) > 1) {
+        hasDraggedThisGesture = true;
+      }
+
+      targetOffset -= deltaX * dragSensitivity;
+      panVelocity = -deltaX * dragSensitivity * 0.18;
+
+      previousMouseX = event.clientX;
+    });
+
+    container.addEventListener("pointerup", (event) => {
+      isDragging = false;
+      container.classList.remove("dragging");
+
+      if (container.hasPointerCapture(event.pointerId)) {
+        container.releasePointerCapture(event.pointerId);
+      }
+
+      if (hasDraggedThisGesture) {
+        scheduleAutoRotateResume();
+      }
+    });
+
+    container.addEventListener("pointercancel", () => {
+      isDragging = false;
+      container.classList.remove("dragging");
+
+      if (hasDraggedThisGesture) {
+        scheduleAutoRotateResume();
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      const normalizedPosition = currentOffset / totalWidth;
+
+      syncPanoFrameWidthCSS();
+
+      currentOffset = normalizedPosition * totalWidth;
+      targetOffset = currentOffset;
+
+      buttonTweenActive = false;
+      clearPendingArrivalCallback();
+
+      updateHotspots();
+      updateActiveFrameButton();
+    });
+
+    frameButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        if (sequencePlaying || activeSequence) return;
+
+        const frameIndex = Number(button.dataset.frame);
+        const config = sequenceByFrame.get(frameIndex);
+
+        clearAutoRotateRestart();
+        showBackButton(false);
+
+        if (config) {
+          startConfiguredSequence(config);
+        } else {
+          moveToFrame(frameIndex);
+        }
+      });
+    });
+
+    sequenceBackButton.addEventListener("click", () => {
+      if (sequencePlaying || !activeSequence) return;
+      playSequence(activeSequence, -1);
+    });
+
+    hotspots.forEach((hotspot) => {
+      hotspot.element.addEventListener("click", () => {
+        if (sequencePlaying || activeSequence) return;
+
+        const hotspotKey = (hotspot.text || hotspot.label || hotspot.title || "").trim().toUpperCase();
+        const config = sequenceByHotspotText.get(hotspotKey);
+
+        autoRotate = false;
+        buttonTweenActive = false;
+
+        clearAutoRotateRestart();
+        clearPendingArrivalCallback();
+
+        panVelocity = 0;
+
+        if (config) {
+          startConfiguredSequence(config);
+          return;
+        }
+
+        document.getElementById("infoTitle").textContent = hotspot.title;
+        document.getElementById("infoText").textContent = hotspot.text;
+        infoBox.style.display = "block";
+      });
+    });
+
+    document.getElementById("closeInfo").addEventListener("click", () => {
+      infoBox.style.display = "none";
+    });
+
+
+    brightnessSlider.addEventListener("input", () => {
+      panoramaStrip.style.setProperty("--pano-brightness", brightnessSlider.value);
+    });
+
+    // Default is 20% brighter.
+    panoramaStrip.style.setProperty("--pano-brightness", brightnessSlider.value);
+
+    ["pointerdown", "pointermove", "pointerup", "click"].forEach((eventName) => {
+      brightnessControl.addEventListener(eventName, (event) => {
+        event.stopPropagation();
+      });
+    });
+
+    buildPanoramaStrip();
+
+    /*
+      Starts loading/decoding all configured sequences immediately.
+      This helps avoid flashing when a sequence starts.
+    */
+    preloadAllSequences();
+
+    animate();
+  </script>
+</body>
+</html>
