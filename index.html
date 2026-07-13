@@ -750,6 +750,226 @@
       }
 
     }
+
+    /*
+      Refined touch-device layout.
+      This catches phones and tablets in landscape as well as portrait,
+      rather than relying only on viewport width.
+    */
+    @media (hover: none) and (pointer: coarse), (max-width: 700px) {
+      #frameButtons {
+        left: max(12px, env(safe-area-inset-left));
+        right: max(12px, env(safe-area-inset-right));
+        bottom: max(10px, env(safe-area-inset-bottom));
+        width: auto;
+        max-width: none;
+        transform: none;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        justify-content: stretch;
+        gap: 3px 10px;
+        padding: 9px 12px;
+        box-sizing: border-box;
+        border-radius: 14px;
+      }
+
+      #frameButtons.hidden {
+        transform: translateY(12px);
+      }
+
+      .frameButton {
+        width: 100%;
+        min-width: 0;
+        height: 25px;
+        padding: 0 1px 5px;
+        font-size: clamp(7px, 2.15vw, 10px);
+        letter-spacing: 0.035em;
+        text-align: center;
+        overflow: hidden;
+        text-overflow: clip;
+      }
+
+      #panToggleButton {
+        top: max(10px, env(safe-area-inset-top));
+      }
+
+      #hotspotFocusClose {
+        width: 26px;
+        height: 26px;
+        top: -22px;
+        right: -22px;
+        font-size: 16px;
+      }
+
+      #sequenceBackButton {
+        left: max(12px, env(safe-area-inset-left));
+        top: max(12px, env(safe-area-inset-top));
+        bottom: auto;
+        transform: none;
+        padding: 9px 17px;
+        font-size: 10px;
+        z-index: 24;
+      }
+
+      #sequenceBackButton:hover {
+        transform: scale(1.04);
+      }
+
+      #sequenceLottiePanel {
+        inset: 0;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        transform: none;
+        padding:
+          max(54px, calc(env(safe-area-inset-top) + 46px))
+          max(12px, env(safe-area-inset-right))
+          max(12px, env(safe-area-inset-bottom))
+          max(12px, env(safe-area-inset-left));
+        box-sizing: border-box;
+      }
+
+      #sequenceLottieCard {
+        max-width: 100%;
+        max-height: 100%;
+        box-sizing: border-box;
+      }
+    }
+
+    /* Phone/tablet portrait */
+    @media (hover: none) and (pointer: coarse) and (orientation: portrait),
+           (max-width: 700px) and (orientation: portrait) {
+      #frameButtons {
+        bottom: max(12px, env(safe-area-inset-bottom));
+        gap: 4px 7px;
+        padding: 10px 10px;
+      }
+
+      .frameButton {
+        font-size: clamp(7px, 2.35vw, 9px);
+      }
+
+      /*
+        Keep a clear band of negative space between the button tray and
+        thumbnail circle.
+      */
+      #hotspotFocusCircle {
+        width: clamp(108px, 30vw, 132px);
+        height: clamp(108px, 30vw, 132px);
+        bottom: calc(max(12px, env(safe-area-inset-bottom)) + 116px);
+      }
+
+      #sequenceLottieCard {
+        width: min(94vw, 520px);
+        max-height: calc(100vh - 92px);
+        max-height: calc(100dvh - 92px);
+        padding: 12px 12px 12px 14px;
+        border-radius: 20px;
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+      }
+
+      #sequenceLottie {
+        width: min(68vw, 360px);
+        height: min(52vh, 440px);
+        height: min(52dvh, 440px);
+        flex: 0 1 auto;
+      }
+
+      #sequenceLearnMore {
+        margin: 0;
+        flex: 0 0 auto;
+        max-width: 104px;
+        padding: 10px 12px;
+        font-size: 9px;
+        line-height: 1.25;
+        white-space: normal;
+        text-align: center;
+      }
+    }
+
+    /* Phone/tablet landscape */
+    @media (hover: none) and (pointer: coarse) and (orientation: landscape),
+           (max-height: 600px) and (orientation: landscape) {
+      #frameButtons {
+        left: max(14px, env(safe-area-inset-left));
+        right: max(14px, env(safe-area-inset-right));
+        bottom: max(8px, env(safe-area-inset-bottom));
+        gap: 2px 12px;
+        padding: 7px 12px;
+        border-radius: 13px;
+      }
+
+      .frameButton {
+        height: 22px;
+        padding-bottom: 4px;
+        font-size: clamp(7px, 1.25vw, 9px);
+      }
+
+      #hotspotFocusCircle {
+        width: clamp(74px, 16vh, 96px);
+        height: clamp(74px, 16vh, 96px);
+        bottom: calc(max(8px, env(safe-area-inset-bottom)) + 66px);
+      }
+
+      #hotspotThumbnailStage {
+        left: 5px;
+        right: 5px;
+        bottom: 4px;
+      }
+
+      #hotspotFocusClose {
+        width: 24px;
+        height: 24px;
+        top: -18px;
+        right: -18px;
+        font-size: 15px;
+      }
+
+      #panToggleButton {
+        top: max(8px, env(safe-area-inset-top));
+        width: 36px;
+        height: 36px;
+      }
+
+      #sequenceLottiePanel {
+        padding:
+          max(46px, calc(env(safe-area-inset-top) + 40px))
+          max(12px, env(safe-area-inset-right))
+          max(10px, env(safe-area-inset-bottom))
+          max(12px, env(safe-area-inset-left));
+      }
+
+      #sequenceLottieCard {
+        width: min(88vw, 820px);
+        max-height: calc(100vh - 64px);
+        max-height: calc(100dvh - 64px);
+        padding: 9px 14px 11px;
+        border-radius: 17px;
+      }
+
+      #sequenceLottie {
+        width: min(76vw, 720px);
+        height: min(49vh, 300px);
+        height: min(49dvh, 300px);
+      }
+
+      #sequenceLearnMore {
+        margin-top: 5px;
+        padding: 8px 16px;
+        font-size: 9px;
+      }
+
+      #sequenceBackButton {
+        left: max(10px, env(safe-area-inset-left));
+        top: max(9px, env(safe-area-inset-top));
+        padding: 8px 15px;
+        font-size: 9px;
+      }
+    }
+
   </style>
 </head>
 
