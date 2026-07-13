@@ -199,31 +199,62 @@
     }
 
     .frameButton {
+      position: relative;
       min-width: 0;
       height: 34px;
-      padding: 0;
+      padding: 0 0 7px;
       border: none;
       outline: none;
       border-radius: 0;
       background: transparent;
-      color: rgba(255,255,255,0.78);
+      color: rgba(255,255,255,0.66);
       font-size: 12px;
       font-weight: 800;
       letter-spacing: 0.055em;
       cursor: pointer;
       white-space: nowrap;
-      transition: color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+      opacity: 0.72;
+      transition:
+        color 0.32s ease-in-out,
+        opacity 0.32s ease-in-out,
+        transform 0.32s ease-in-out,
+        text-shadow 0.32s ease-in-out;
+    }
+
+    .frameButton::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      width: 100%;
+      height: 2px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.98);
+      opacity: 0;
+      transform: translateX(-50%) scaleX(0);
+      transform-origin: center center;
+      transition:
+        transform 0.42s cubic-bezier(0.65, 0, 0.35, 1),
+        opacity 0.22s ease-in-out;
     }
 
     .frameButton:hover,
     .frameButton:focus-visible {
       color: #fff;
+      opacity: 0.92;
       transform: translateY(-1px);
     }
 
     .frameButton.active {
       color: #fff;
       opacity: 1;
+      transform: translateY(-2px);
+      text-shadow: 0 0 12px rgba(255,255,255,0.45);
+    }
+
+    .frameButton.active::after {
+      opacity: 1;
+      transform: translateX(-50%) scaleX(1);
     }
 
     #sequenceBackButton {
@@ -231,23 +262,28 @@
       left: 50%;
       bottom: 28px;
       transform: translateX(-50%);
-      z-index: 16;
+      z-index: 20;
       display: none;
-      padding: 13px 26px;
-      border: none;
+      padding: 12px 24px;
+      border: 1px solid rgba(255,255,255,0.9);
       border-radius: 999px;
-      background: rgba(255,255,255,0.5);
-      color: #111;
-      font-size: 14px;
+      background: rgba(0,0,0,0.24);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #fff;
+      font-size: 12px;
       font-weight: 800;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.08em;
       cursor: pointer;
-      box-shadow: 0 12px 30px rgba(0,0,0,0.28);
-      transition: transform 0.22s ease, opacity 0.22s ease;
+      box-shadow: none;
+      transition:
+        transform 0.22s ease,
+        background 0.22s ease;
     }
 
     #sequenceBackButton:hover {
-      transform: translateX(-50%) scale(1.06);
+      transform: translateX(-50%) scale(1.05);
+      background: rgba(0,0,0,0.38);
     }
 
     #infoBox {
@@ -277,38 +313,140 @@
     }
 
 
-    #brightnessControl {
+    #sequenceLottiePanel {
       position: fixed;
-      right: 24px;
-      bottom: 28px;
-      z-index: 18;
-      display: flex;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 19;
+      display: none;
       align-items: center;
-      gap: 10px;
-      padding: 10px 13px;
-      border-radius: 999px;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    #sequenceLottieCard {
+      position: relative;
+      isolation: isolate;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 22px 28px 26px;
+      border-radius: 28px;
       background: transparent;
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
+      pointer-events: none;
+    }
+
+    #sequenceLottieCard::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: inherit;
+      background: rgba(0,0,0,0.42);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 18px 55px rgba(0,0,0,0.28);
+      opacity: 0;
+      transition: opacity 0.58s ease-in-out;
+    }
+
+    #sequenceLottieCard.is-chrome-visible::before {
+      opacity: 1;
+    }
+
+    #sequenceLottie {
+      width: min(1040px, 88vw);
+      height: min(600px, 68vh);
+      pointer-events: none;
+    }
+
+    #sequenceLearnMore {
+      margin-top: 12px;
+      padding: 12px 24px;
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 999px;
+      background: rgba(0,0,0,0.24);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       color: #fff;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 800;
-      letter-spacing: 0.045em;
-      user-select: none;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(9px);
+      transition:
+        opacity 0.52s ease-in-out,
+        transform 0.52s ease-in-out,
+        background 0.22s ease;
+    }
+
+    #sequenceLottieCard.is-chrome-visible #sequenceLearnMore {
+      opacity: 1;
+      transform: translateY(0);
       pointer-events: auto;
     }
 
-    #brightnessSlider {
-      width: 145px;
-      accent-color: #fff;
-      cursor: pointer;
+    #sequenceLottieCard.is-chrome-visible #sequenceLearnMore:hover {
+      transform: translateY(0) scale(1.05);
+      background: rgba(0,0,0,0.38);
     }
 
 
+    #sequenceLoadingOverlay {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 22px;
+      border-radius: 18px;
+      background: rgba(0,0,0,0.30);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.09em;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition:
+        opacity 0.24s ease,
+        visibility 0.24s ease;
+    }
+
+    #sequenceLoadingOverlay.is-visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    #sequenceLoadingSpinner {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.25);
+      border-top-color: #fff;
+      animation: sequenceLoadingSpin 0.9s linear infinite;
+    }
+
+    @keyframes sequenceLoadingSpin {
+      to { transform: rotate(360deg); }
+    }
+
     #panToggleButton {
       position: fixed;
-      left: 24px;
-      bottom: 28px;
+      left: 50%;
+      top: 18px;
+      bottom: auto;
+      transform: translateX(-50%);
       z-index: 18;
       width: 44px;
       height: 44px;
@@ -328,7 +466,7 @@
 
     #panToggleButton:hover {
       background: rgba(0, 0, 0, 0.32);
-      transform: scale(1.05);
+      transform: translateX(-50%) scale(1.05);
     }
 
     #panToggleButton svg {
@@ -365,7 +503,8 @@
       position: fixed;
       left: 50%;
       bottom: 104px;
-      transform: translateX(-50%);
+      transform: translateX(-50%) scale(1);
+      transform-origin: center center;
       width: 156px;
       height: 156px;
       border-radius: 50%;
@@ -378,9 +517,19 @@
       box-sizing: border-box;
       overflow: visible;
       transition:
+        opacity 0.48s ease-out,
+        visibility 0.48s ease-out,
+        transform 0.48s cubic-bezier(0.22, 1, 0.36, 1),
         background 0.25s ease,
         border-color 0.25s ease,
         backdrop-filter 0.25s ease;
+    }
+
+
+    #hotspotFocusCircle.startup-hidden {
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(-50%) scale(0.78);
     }
 
     #hotspotThumbnailStage {
@@ -419,6 +568,23 @@
       will-change: transform;
       transition-property: transform;
       transition-duration: 0.95s;
+    }
+
+
+    .hotspotFocusThumbnail.startup-thumbnail {
+      opacity: 0;
+      visibility: visible;
+      transform: translateX(-50%) rotateY(0deg) scale(0.78);
+      transition: none;
+    }
+
+    .hotspotFocusThumbnail.startup-thumbnail.startup-thumbnail-show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) rotateY(0deg) scale(1);
+      transition:
+        opacity 0.5s ease-out,
+        transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .hotspotFocusThumbnail.is-visible {
@@ -553,9 +719,26 @@
         font-size: 13px;
       }
 
+      #sequenceLottieCard {
+        padding: 16px 16px 20px;
+        border-radius: 22px;
+      }
+
+      #sequenceLottie {
+        width: min(840px, 90vw);
+        height: min(480px, 58vh);
+      }
+
+      #sequenceLearnMore {
+        margin-top: 8px;
+        padding: 10px 20px;
+        font-size: 10px;
+      }
+
       #panToggleButton {
-        left: 14px;
-        bottom: 18px;
+        left: 50%;
+        top: 12px;
+        bottom: auto;
         width: 40px;
         height: 40px;
       }
@@ -564,17 +747,6 @@
         bottom: 92px;
         width: 124px;
         height: 124px;
-      }
-
-      #brightnessControl {
-        right: 14px;
-        bottom: 70px;
-        padding: 8px 10px;
-        font-size: 9px;
-      }
-
-      #brightnessSlider {
-        width: 105px;
       }
 
     }
@@ -625,12 +797,12 @@
     <circle id="hotspotConnectorDotB" class="hotspotConnectorDot" cx="0" cy="0" r="3.5"></circle>
   </svg>
 
-  <div id="hotspotFocusCircle" class="is-disabled">
+  <div id="hotspotFocusCircle" class="startup-hidden">
     <div id="hotspotThumbnailStage" aria-hidden="true">
       <img id="hotspotFocusThumbnailA" class="hotspotFocusThumbnail" alt="" draggable="false" />
       <img id="hotspotFocusThumbnailB" class="hotspotFocusThumbnail" alt="" draggable="false" />
     </div>
-    <button id="hotspotFocusClose" type="button" aria-label="Show thumbnails">SHOW THUMBNAILS</button>
+    <button id="hotspotFocusClose" type="button" aria-label="Hide thumbnails">×</button>
   </div>
 
   <button id="panToggleButton" type="button" aria-label="Pause automatic panning" title="Pause automatic panning">
@@ -640,12 +812,19 @@
     </svg>
   </button>
 
-  <button id="sequenceBackButton">BACK</button>
-
-  <div id="brightnessControl" aria-label="Brightness control">
-    <span>BRIGHTNESS</span>
-    <input id="brightnessSlider" type="range" min="0.5" max="1.5" step="0.01" value="1.0" aria-label="Adjust brightness" />
+  <div id="sequenceLottiePanel" aria-hidden="true">
+    <div id="sequenceLottieCard">
+      <div id="sequenceLottie"></div>
+      <button id="sequenceLearnMore" type="button">LEARN MORE</button>
+    </div>
   </div>
+
+  <div id="sequenceLoadingOverlay" aria-hidden="true">
+    <div id="sequenceLoadingSpinner"></div>
+    <span>LOADING</span>
+  </div>
+
+  <button id="sequenceBackButton">BACK</button>
 
   <div id="frameButtons" aria-label="Hotspot navigation"></div>
 
@@ -655,6 +834,7 @@
     <button id="closeInfo">Close</button>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
   <script>
     const container = document.getElementById("viewer");
     const scenePlane = document.getElementById("scenePlane");
@@ -662,9 +842,12 @@
     const frameButtonsWrapper = document.getElementById("frameButtons");
     let frameButtons = [];
     const sequenceBackButton = document.getElementById("sequenceBackButton");
+    const sequenceLottiePanel = document.getElementById("sequenceLottiePanel");
+    const sequenceLottieContainer = document.getElementById("sequenceLottie");
+    const sequenceLottieCard = document.getElementById("sequenceLottieCard");
+    const sequenceLearnMore = document.getElementById("sequenceLearnMore");
+    const sequenceLoadingOverlay = document.getElementById("sequenceLoadingOverlay");
     const infoBox = document.getElementById("infoBox");
-    const brightnessControl = document.getElementById("brightnessControl");
-    const brightnessSlider = document.getElementById("brightnessSlider");
     const panToggleButton = document.getElementById("panToggleButton");
     const hotspotConnectorLineA = document.getElementById("hotspotConnectorLineA");
     const hotspotConnectorDotA = document.getElementById("hotspotConnectorDotA");
@@ -675,7 +858,7 @@
     const hotspotFocusThumbnailB = document.getElementById("hotspotFocusThumbnailB");
     const hotspotFocusClose = document.getElementById("hotspotFocusClose");
 
-    let hotspotConnectorEnabled = false;
+    let hotspotConnectorEnabled = true;
     let thumbnailsWereOpenBeforeSequence = false;
     let currentThumbnailKey = "";
     let activeThumbnailElement = hotspotFocusThumbnailA;
@@ -822,6 +1005,15 @@
     let sequenceDirection = 1;
     let sequenceRAF = null;
     let sequenceLastTime = 0;
+
+    let sequenceLottieAnimation = null;
+    let sequenceLottieReady = false;
+    let sequenceLottieLastFrame = -1;
+    let sequenceLottieLoadPromise = null;
+    let sequencePreparing = false;
+    let sequencePreparationToken = 0;
+    let sequenceLoadingTimer = null;
+    const sequenceLottiePath = "lottie/RANDOM%20PLANK/RANDOM%20PLANK.json";
 
     let autoRotateRestartTimeout = null;
 
@@ -996,40 +1188,49 @@
     }
 
     async function preloadSequence(config) {
-      if (!config || config.imagesReady || config.imagesLoading) return;
+      if (!config) return false;
+      if (config.imagesReady) return true;
+      if (config.imagesPromise) return config.imagesPromise;
 
       config.imagesLoading = true;
       config.imagesReady = false;
 
-      config.imageElements = config.frames.map((src) => {
-        const img = new Image();
-        img.src = src;
-        return img;
-      });
+      config.imagesPromise = (async () => {
+        config.imageElements = config.frames.map((src) => {
+          const img = new Image();
+          img.src = src;
+          return img;
+        });
 
-      await Promise.all(
-        config.imageElements.map((img) => {
-          if (img.complete) {
-            return img.decode ? img.decode().catch(() => {}) : Promise.resolve();
-          }
+        await Promise.all(
+          config.imageElements.map((img) => {
+            if (img.complete) {
+              return img.decode
+                ? img.decode().catch(() => {})
+                : Promise.resolve();
+            }
 
-          return new Promise((resolve) => {
-            img.onload = async () => {
-              if (img.decode) {
-                try {
-                  await img.decode();
-                } catch (error) {}
-              }
-              resolve();
-            };
+            return new Promise((resolve) => {
+              img.onload = async () => {
+                if (img.decode) {
+                  try {
+                    await img.decode();
+                  } catch (error) {}
+                }
+                resolve();
+              };
 
-            img.onerror = resolve;
-          });
-        })
-      );
+              img.onerror = resolve;
+            });
+          })
+        );
 
-      config.imagesReady = true;
-      config.imagesLoading = false;
+        config.imagesReady = true;
+        config.imagesLoading = false;
+        return true;
+      })();
+
+      return config.imagesPromise;
     }
 
     function preloadAllSequences() {
@@ -1076,6 +1277,7 @@
         frame: 0,
         x: 58.8,
         y: 60.05,
+        offsetY: -30,
         title: "Hotspot 2",
         text: "RANDOM PLANK"
       },
@@ -1085,6 +1287,8 @@
         frame: 0,
         x: 93.33,
         y: 55.75,
+        offsetX: -5,
+        offsetY: -15,
         title: "Hotspot 3",
         text: "METAL CRAFT"
       },
@@ -1114,6 +1318,7 @@
         frame: 1,
         x: 67.36,
         y: 60.48,
+        offsetY: -30,
         title: "Hotspot 6",
         text: "BOARD + BATTEN"
       },
@@ -1201,6 +1406,19 @@
     });
 
     frameButtons = Array.from(frameButtonsWrapper.querySelectorAll(".frameButton"));
+
+    function setActiveHotspotButton(hotspot) {
+      const key = hotspot
+        ? normalizeHotspotKey(hotspot.text || hotspot.label || hotspot.title)
+        : "";
+
+      frameButtons.forEach((button) => {
+        button.classList.toggle(
+          "active",
+          Boolean(key) && button.dataset.hotspotKey === key
+        );
+      });
+    }
 
     function getClosestOffsetForFrame(frameIndex) {
       const desiredOffsetInMiddleCopy = totalWidth + frameIndex * frameWidth;
@@ -1384,6 +1602,174 @@
       hoverPauseTarget = strongestHoverPause > 0.1 ? 1 : 0;
     }
 
+    function preloadAllHotspotThumbnails() {
+      const uniqueNames = Array.from(
+        new Set(
+          hotspots
+            .map((hotspot) =>
+              (hotspot.text || hotspot.label || hotspot.title || "").trim()
+            )
+            .filter(Boolean)
+        )
+      );
+
+      return Promise.all(
+        uniqueNames.map((name) => {
+          const image = new Image();
+          image.src = `Thumbnails/${encodeURIComponent(name)}.png`;
+
+          if (image.complete) {
+            return image.decode
+              ? image.decode().catch(() => {})
+              : Promise.resolve();
+          }
+
+          return new Promise((resolve) => {
+            image.onload = async () => {
+              if (image.decode) {
+                try {
+                  await image.decode();
+                } catch (error) {}
+              }
+              resolve();
+            };
+            image.onerror = resolve;
+          });
+        })
+      );
+    }
+
+    function waitForDelay(milliseconds) {
+      return new Promise((resolve) => setTimeout(resolve, milliseconds));
+    }
+
+    function getClosestVisibleHotspotToCenter() {
+      const centerX = window.innerWidth / 2;
+      let closestHotspot = null;
+      let closestDistance = Infinity;
+
+      hotspots.forEach((hotspot) => {
+        if (!hotspot._visible) return;
+
+        const distance = Math.abs(hotspot._screenX - centerX);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestHotspot = hotspot;
+        }
+      });
+
+      return closestHotspot;
+    }
+
+    async function prepareStartupThumbnail(hotspot) {
+      const thumbnailName = getHotspotThumbnailName(hotspot);
+      if (!thumbnailName) return false;
+
+      const element = hotspotFocusThumbnailA;
+
+      resetThumbnailElement(hotspotFocusThumbnailA);
+      resetThumbnailElement(hotspotFocusThumbnailB);
+
+      activeThumbnailElement = hotspotFocusThumbnailA;
+      inactiveThumbnailElement = hotspotFocusThumbnailB;
+      currentThumbnailKey = thumbnailName;
+
+      element.alt = thumbnailName;
+      element.classList.add("startup-thumbnail");
+      element.src = `Thumbnails/${encodeURIComponent(thumbnailName)}.png`;
+
+      await new Promise((resolve) => {
+        const finish = async () => {
+          if (element.decode) {
+            try {
+              await element.decode();
+            } catch (error) {}
+          }
+          resolve();
+        };
+
+        if (element.complete && element.naturalWidth > 0) {
+          finish();
+        } else {
+          element.onload = finish;
+          element.onerror = resolve;
+        }
+      });
+
+      element.onload = null;
+      element.onerror = null;
+      return element.naturalWidth > 0;
+    }
+
+    async function revealInitialThumbnailFeature() {
+      /*
+        All PNGs are cached first. The actual first thumbnail element is then
+        decoded before the circle is allowed to appear.
+      */
+      await preloadAllHotspotThumbnails();
+
+      autoRotate = false;
+      panVelocity = 0;
+      targetOffset = currentOffset;
+      setPanToggleVisible(false);
+
+      updatePanorama();
+      updateHotspots();
+
+      const focusHotspot = getClosestVisibleHotspotToCenter();
+      if (!focusHotspot) {
+        hotspotFocusCircle.classList.remove("startup-hidden");
+        setPanToggleVisible(true);
+        return;
+      }
+
+      const thumbnailReady = await prepareStartupThumbnail(focusHotspot);
+
+      /*
+        A short paint buffer avoids exposing the circle during the same frame
+        in which the browser finishes decoding the PNG.
+      */
+      await waitForDelay(280);
+
+      connectorActiveHotspot = focusHotspot;
+      connectorOutgoingHotspot = null;
+      connectorTransitioning = false;
+      setActiveHotspotButton(focusHotspot);
+
+      // Stage 1: circle scales and fades in, then remains visible.
+      hotspotFocusCircle.classList.remove("startup-hidden");
+      await waitForDelay(540);
+
+      // Stage 2: line extends from the circle to the correct hotspot.
+      hotspotConnectorEnabled = true;
+      connectorTransitionStart = performance.now();
+      connectorTransitioning = true;
+      await waitForDelay(connectorTransitionDuration + 90);
+
+      // Stage 3: the fully decoded thumbnail scales and fades in.
+      if (thumbnailReady) {
+        void activeThumbnailElement.offsetWidth;
+        activeThumbnailElement.classList.add("startup-thumbnail-show");
+        await waitForDelay(520);
+
+        /*
+          Transfer to the normal persistent visible state without changing
+          opacity or scale, so it cannot blink or disappear afterward.
+        */
+        activeThumbnailElement.classList.add("is-visible");
+        activeThumbnailElement.classList.remove(
+          "startup-thumbnail",
+          "startup-thumbnail-show"
+        );
+      }
+
+      setPanToggleVisible(true);
+
+      if (!userPausedAutoRotate && !sequencePlaying && !sequencePreparing) {
+        autoRotate = true;
+      }
+    }
+
     function getHotspotThumbnailName(hotspot) {
       return (hotspot?.text || hotspot?.label || hotspot?.title || "").trim();
     }
@@ -1393,7 +1779,9 @@
         "is-visible",
         "is-entering",
         "is-exiting",
-        "is-flipping-in"
+        "is-flipping-in",
+        "startup-thumbnail",
+        "startup-thumbnail-show"
       );
       element.style.removeProperty("opacity");
       element.style.removeProperty("visibility");
@@ -1561,26 +1949,15 @@
         !hotspotConnectorEnabled ||
         !hotspotsVisible ||
         sequencePlaying ||
-        activeSequence
+        activeSequence ||
+        sequencePreparing
       ) {
         hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
         hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB);
         return;
       }
 
-      let focusHotspot = null;
-      let closestToCenter = Infinity;
-      const centerX = window.innerWidth / 2;
-
-      hotspots.forEach((hotspot) => {
-        if (!hotspot._visible) return;
-
-        const distance = Math.abs(hotspot._screenX - centerX);
-        if (distance < closestToCenter) {
-          closestToCenter = distance;
-          focusHotspot = hotspot;
-        }
-      });
+      const focusHotspot = getClosestVisibleHotspotToCenter();
 
       if (!focusHotspot) {
         hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
@@ -1593,12 +1970,14 @@
         connectorOutgoingHotspot = null;
         connectorTransitionStart = now;
         connectorTransitioning = true;
+        setActiveHotspotButton(connectorActiveHotspot);
         updateHotspotThumbnail(connectorActiveHotspot);
       } else if (focusHotspot !== connectorActiveHotspot) {
         connectorOutgoingHotspot = connectorActiveHotspot;
         connectorActiveHotspot = focusHotspot;
         connectorTransitionStart = now;
         connectorTransitioning = true;
+        setActiveHotspotButton(connectorActiveHotspot);
         updateHotspotThumbnail(connectorActiveHotspot);
       }
 
@@ -1716,6 +2095,118 @@
       }
     }
 
+    function initializeSequenceLottie() {
+      if (sequenceLottieReady && sequenceLottieAnimation) {
+        return Promise.resolve(true);
+      }
+
+      if (sequenceLottieLoadPromise) {
+        return sequenceLottieLoadPromise;
+      }
+
+      sequenceLottieLoadPromise = new Promise((resolve) => {
+        if (!window.lottie) {
+          console.error("Lottie library is unavailable.");
+          resolve(false);
+          return;
+        }
+
+        sequenceLottieAnimation = lottie.loadAnimation({
+          container: sequenceLottieContainer,
+          renderer: "svg",
+          loop: false,
+          autoplay: false,
+          path: sequenceLottiePath,
+          rendererSettings: {
+            preserveAspectRatio: "xMidYMid meet",
+            progressiveLoad: true
+          }
+        });
+
+        sequenceLottieAnimation.addEventListener("DOMLoaded", () => {
+          sequenceLottieReady = true;
+          sequenceLottieLastFrame = -1;
+          sequenceLottieAnimation.goToAndStop(0, true);
+          resolve(true);
+        });
+
+        sequenceLottieAnimation.addEventListener("data_failed", () => {
+          console.error("The sequence Lottie could not be loaded.");
+          resolve(false);
+        });
+      });
+
+      return sequenceLottieLoadPromise;
+    }
+
+    function setSequenceChromeVisible(visible) {
+      sequenceLottieCard.classList.toggle("is-chrome-visible", visible);
+    }
+
+    function showSequenceLottie(show, showChrome = true) {
+      if (show) {
+        sequenceLottiePanel.style.display = "flex";
+        sequenceLottiePanel.setAttribute("aria-hidden", "false");
+        setSequenceChromeVisible(false);
+
+        if (showChrome) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setSequenceChromeVisible(true);
+            });
+          });
+        }
+      } else {
+        setSequenceChromeVisible(false);
+        sequenceLottiePanel.style.display = "none";
+        sequenceLottiePanel.setAttribute("aria-hidden", "true");
+      }
+    }
+
+    function showSequenceLoading(show) {
+      sequenceLoadingOverlay.classList.toggle("is-visible", show);
+      sequenceLoadingOverlay.setAttribute("aria-hidden", show ? "false" : "true");
+    }
+
+    function prepareSequenceAssets(config) {
+      if (sequenceLoadingTimer) {
+        clearTimeout(sequenceLoadingTimer);
+      }
+
+      sequenceLoadingTimer = setTimeout(() => {
+        if (sequencePreparing) {
+          showSequenceLoading(true);
+        }
+      }, 220);
+
+      return Promise.all([
+        preloadSequence(config),
+        initializeSequenceLottie()
+      ]).finally(() => {
+        if (sequenceLoadingTimer) {
+          clearTimeout(sequenceLoadingTimer);
+          sequenceLoadingTimer = null;
+        }
+      });
+    }
+
+    function syncSequenceLottie(config, index) {
+      if (!sequenceLottieReady || !sequenceLottieAnimation || !config) return;
+
+      const imageFrameCount = Math.max(1, config.frames.length - 1);
+      const progress = Math.max(0, Math.min(index / imageFrameCount, 1));
+      const totalLottieFrames = Math.max(
+        1,
+        Math.floor(sequenceLottieAnimation.totalFrames || 1)
+      );
+      const targetFrame = Math.round(progress * (totalLottieFrames - 1));
+
+      if (targetFrame !== sequenceLottieLastFrame) {
+        sequenceLottieLastFrame = targetFrame;
+        sequenceLottieAnimation.goToAndStop(targetFrame, true);
+      }
+    }
+
     function applySequenceFrame(config, index) {
       const img = config.imageElements[index];
       const src = img ? img.src : config.frames[index];
@@ -1723,6 +2214,8 @@
       panoFrameCopies[config.frame].forEach((frameEl) => {
         frameEl.style.backgroundImage = `url("${src}")`;
       });
+
+      syncSequenceLottie(config, index);
     }
 
     function resetSequenceFrameToDefault(config) {
@@ -1770,6 +2263,12 @@
         setHotspotsVisible(true);
         releaseParallax();
         restoreThumbnailFeatureAfterSequence();
+        showSequenceLottie(false);
+
+        if (sequenceLottieReady && sequenceLottieAnimation) {
+          sequenceLottieLastFrame = 0;
+          sequenceLottieAnimation.goToAndStop(0, true);
+        }
 
         scheduleAutoRotateResume(1500);
       }
@@ -1819,9 +2318,10 @@
     async function playSequence(config, direction = 1) {
       if (!config || sequencePlaying) return;
 
-      if (!config.imagesReady) {
-        await preloadSequence(config);
-      }
+      await Promise.all([
+        preloadSequence(config),
+        initializeSequenceLottie()
+      ]);
 
       activeSequence = config;
       autoRotate = false;
@@ -1837,6 +2337,12 @@
       setFrameButtonsVisible(false);
       showBackButton(false);
       setHotspotsVisible(false);
+
+      if (direction === 1) {
+        showSequenceLottie(true, true);
+      } else {
+        showSequenceLottie(true, false);
+      }
 
       if (direction === 1) {
         sequenceCurrentIndex = 0;
@@ -2020,13 +2526,28 @@
     });
 
 
+    sequenceLearnMore.addEventListener("click", (event) => {
+      event.stopPropagation();
+      /*
+        Placeholder for the future hotspot-specific Learn More action.
+        The current sequence remains paused on its displayed frame.
+      */
+    });
+
+    ["pointerdown", "pointermove", "pointerup"].forEach((eventName) => {
+      sequenceLearnMore.addEventListener(eventName, (event) => {
+        event.stopPropagation();
+      });
+    });
+
     sequenceBackButton.addEventListener("click", () => {
       if (sequencePlaying || !activeSequence) return;
+      setSequenceChromeVisible(false);
       playSequence(activeSequence, -1);
     });
 
     function activateHotspot(hotspot) {
-      if (sequencePlaying || activeSequence) return;
+      if (sequencePlaying || activeSequence || sequencePreparing) return;
 
       const hotspotKey = normalizeHotspotKey(hotspot.text || hotspot.label || hotspot.title);
       const config = sequenceByHotspotText.get(hotspotKey);
@@ -2040,22 +2561,34 @@
       infoBox.style.display = "none";
       hideThumbnailFeatureForSequence();
 
-      /*
-        Every hotspot and every bottom button first uses the same smooth camera
-        tween to return to its panorama frame. This guarantees that the first
-        frame of the future image sequence will line up with the panorama.
-      */
-      moveToFrame(hotspot.frame, () => {
-        if (config) {
-          playSequence(config, 1);
-          return;
-        }
+      if (!config) {
+        moveToFrame(hotspot.frame, () => {
+          document.getElementById("infoTitle").textContent =
+            hotspot.text || hotspot.title;
+          document.getElementById("infoText").textContent =
+            "Image sequence coming soon.";
+          infoBox.style.display = "block";
+        });
+        return;
+      }
 
-        document.getElementById("infoTitle").textContent =
-          hotspot.text || hotspot.title;
-        document.getElementById("infoText").textContent =
-          "Image sequence coming soon.";
-        infoBox.style.display = "block";
+      /*
+        Start decoding the JPG sequence and preparing the Lottie immediately,
+        while the panorama is still panning to the correct matching frame.
+      */
+      sequencePreparing = true;
+      const preparationToken = ++sequencePreparationToken;
+      const assetsPromise = prepareSequenceAssets(config);
+
+      moveToFrame(hotspot.frame, async () => {
+        await assetsPromise;
+
+        if (preparationToken !== sequencePreparationToken) return;
+
+        sequencePreparing = false;
+        showSequenceLoading(false);
+        forceParallaxNeutral();
+        playSequence(config, 1);
       });
     }
 
@@ -2129,9 +2662,15 @@
       });
     });
 
+    function setPanToggleVisible(visible) {
+      panToggleButton.style.display = visible ? "flex" : "none";
+    }
+
     function hideThumbnailFeatureForSequence() {
       thumbnailsWereOpenBeforeSequence = hotspotConnectorEnabled;
 
+      setPanToggleVisible(false);
+      setActiveHotspotButton(null);
       hotspotConnectorEnabled = false;
       hotspotFocusCircle.style.display = "none";
       hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
@@ -2140,6 +2679,7 @@
     }
 
     function restoreThumbnailFeatureAfterSequence() {
+      setPanToggleVisible(true);
       hotspotFocusCircle.style.display = "";
 
       if (thumbnailsWereOpenBeforeSequence) {
@@ -2158,6 +2698,7 @@
           });
 
           currentThumbnailKey = "";
+          setActiveHotspotButton(connectorActiveHotspot);
           updateHotspotThumbnail(connectorActiveHotspot, true);
         }
       } else {
@@ -2182,6 +2723,7 @@
         hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
         hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB);
         hideAllThumbnails();
+        setActiveHotspotButton(null);
       } else {
         hotspotFocusCircle.classList.remove("is-disabled");
         hotspotFocusClose.textContent = "×";
@@ -2196,40 +2738,23 @@
           });
 
           currentThumbnailKey = "";
+          setActiveHotspotButton(connectorActiveHotspot);
           updateHotspotThumbnail(connectorActiveHotspot, true);
         }
       }
     });
 
-    brightnessSlider.addEventListener("input", () => {
-      panoramaStrip.style.setProperty("--pano-brightness", brightnessSlider.value);
-    });
-
-    // Default brightness is normal / unadjusted.
-    panoramaStrip.style.setProperty("--pano-brightness", brightnessSlider.value);
-
-    ["pointerdown", "pointermove", "pointerup", "click"].forEach((eventName) => {
-      brightnessControl.addEventListener(eventName, (event) => {
-        event.stopPropagation();
-      });
-    });
-
-    hotspotFocusCircle.classList.add("is-disabled");
-    hotspotFocusClose.textContent = "SHOW THUMBNAILS";
-    hotspotFocusClose.setAttribute("aria-label", "Show thumbnails");
-    hideAllThumbnails();
-    hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
-    hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB);
+    hotspotConnectorEnabled = false;
+    hotspotFocusCircle.classList.remove("is-disabled");
+    hotspotFocusClose.textContent = "×";
+    hotspotFocusClose.setAttribute("aria-label", "Hide thumbnails");
 
     buildPanoramaStrip();
-
-    /*
-      Starts loading/decoding all configured sequences immediately.
-      This helps avoid flashing when a sequence starts.
-    */
-    preloadAllSequences();
-
+    updatePanorama();
+    updateHotspots();
     animate();
+
+    revealInitialThumbnailFeature();
   </script>
 </body>
 </html>
