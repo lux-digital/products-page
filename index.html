@@ -31,13 +31,26 @@
       cursor: grabbing;
     }
 
+    #scenePlane {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      transform: none;
+      pointer-events: none;
+    }
+
+    #scenePlane .hotspot {
+      pointer-events: auto;
+    }
+
     #panoramaStrip {
       position: absolute;
       left: 0;
       top: var(--pano-strip-top, 0px);
       height: var(--pano-frame-height, 100vh);
       display: flex;
-      filter: brightness(var(--pano-brightness, 1.2));
+      filter: brightness(var(--pano-brightness, 1));
       will-change: transform, filter;
     }
 
@@ -52,11 +65,11 @@
 
     .hotspot {
       position: absolute;
-      width: 42px;
-      height: 42px;
+      width: 37.8px;
+      height: 37.8px;
       border-radius: 50%;
       background: rgba(128,128,128,0.3);
-      border: 1px solid rgba(160,160,160,0.72);
+      border: none;
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       transform: translate(-50%, -50%) scale(var(--hotspot-scale, 0.42));
@@ -69,22 +82,24 @@
       font-size: 0;
       line-height: 1;
       user-select: none;
-      transition: transform 0.28s ease-in-out, opacity 0.22s ease, background 0.22s ease;
+      transition: opacity 0.22s ease, background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
       will-change: transform, opacity;
       overflow: visible;
     }
+
 
     .hotspot::before {
       content: "";
       position: absolute;
       left: 50%;
       top: 50%;
-      width: 42px;
-      height: 42px;
+      width: 37.8px;
+      height: 37.8px;
       border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.62);
-      transform: translate(-50%, -50%) scale(0.72);
-      opacity: 0.82;
+      border: none;
+      background: rgba(255,255,255,0.18);
+      transform: translate(-50%, -50%) scale(0.82);
+      opacity: 0.7;
       pointer-events: none;
       z-index: 1;
       animation: hotspotPulse 2.85s ease-out infinite;
@@ -92,15 +107,15 @@
 
     @keyframes hotspotPulse {
       0% {
-        transform: translate(-50%, -50%) scale(0.72);
-        opacity: 0.82;
+        transform: translate(-50%, -50%) scale(0.82);
+        opacity: 0.7;
       }
-      42% {
-        transform: translate(-50%, -50%) scale(2.15);
+      45% {
+        transform: translate(-50%, -50%) scale(2.0);
         opacity: 0;
       }
       100% {
-        transform: translate(-50%, -50%) scale(2.15);
+        transform: translate(-50%, -50%) scale(2.0);
         opacity: 0;
       }
     }
@@ -113,7 +128,7 @@
       width: 17px;
       height: 17px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.94);
+      background: rgba(255,255,255,0.5);
       box-shadow: 0 2px 9px rgba(0,0,0,0.28);
       transform: translate(-50%, -50%);
       pointer-events: none;
@@ -141,8 +156,17 @@
       z-index: 3;
     }
 
-    .hotspot:hover {
-      background: rgba(150,150,150,0.38);
+    .hotspot:hover,
+    .hotspot.is-over {
+      background: rgba(255,255,255,0.42);
+      border-color: rgba(255,255,255,0.94);
+      box-shadow: 0 0 18px rgba(255,255,255,0.28), 0 10px 28px rgba(0,0,0,0.24);
+    }
+
+    .hotspot:hover::after,
+    .hotspot.is-over::after {
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(255,255,255,0.28), 0 0 18px rgba(255,255,255,0.38), 0 5px 16px rgba(0,0,0,0.34);
     }
 
     #frameButtons {
@@ -152,10 +176,15 @@
       transform: translateX(-50%);
       z-index: 15;
       display: flex;
-      gap: 10px;
-      padding: 10px 12px;
-      border-radius: 999px;
-      background: rgba(0, 0, 0, 0.45);
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 4px 22px;
+      width: max-content;
+      max-width: min(1180px, calc(100vw - 40px));
+      padding: 12px 22px;
+      border-radius: 18px;
+      background: rgba(0, 0, 0, 0.20);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       opacity: 1;
@@ -170,35 +199,31 @@
     }
 
     .frameButton {
-      min-width: 126px;
-      height: 42px;
-      padding: 0 18px;
-      border: 1px solid rgba(255,255,255,0.35);
-      border-radius: 999px;
-      background: rgba(255,255,255,0.86);
-      color: #111;
+      min-width: 0;
+      height: 34px;
+      padding: 0;
+      border: none;
+      outline: none;
+      border-radius: 0;
+      background: transparent;
+      color: rgba(255,255,255,0.78);
       font-size: 12px;
       font-weight: 800;
-      letter-spacing: 0.035em;
+      letter-spacing: 0.055em;
       cursor: pointer;
       white-space: nowrap;
-      transition:
-        transform 0.22s ease,
-        background 0.22s ease,
-        color 0.22s ease,
-        border-color 0.22s ease;
+      transition: color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
     }
 
-    .frameButton:hover {
-      transform: scale(1.12);
-      background: #fff;
-      border-color: rgba(255,255,255,0.8);
+    .frameButton:hover,
+    .frameButton:focus-visible {
+      color: #fff;
+      transform: translateY(-1px);
     }
 
     .frameButton.active {
-      background: #111;
       color: #fff;
-      border-color: rgba(255,255,255,0.7);
+      opacity: 1;
     }
 
     #sequenceBackButton {
@@ -211,7 +236,7 @@
       padding: 13px 26px;
       border: none;
       border-radius: 999px;
-      background: rgba(255,255,255,0.94);
+      background: rgba(255,255,255,0.5);
       color: #111;
       font-size: 14px;
       font-weight: 800;
@@ -262,9 +287,9 @@
       gap: 10px;
       padding: 10px 13px;
       border-radius: 999px;
-      background: rgba(0, 0, 0, 0.45);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
       color: #fff;
       font-size: 11px;
       font-weight: 800;
@@ -279,17 +304,246 @@
       cursor: pointer;
     }
 
+
+    #panToggleButton {
+      position: fixed;
+      left: 24px;
+      bottom: 28px;
+      z-index: 18;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.20);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    #panToggleButton:hover {
+      background: rgba(0, 0, 0, 0.32);
+      transform: scale(1.05);
+    }
+
+    #panToggleButton svg {
+      width: 19px;
+      height: 19px;
+      fill: currentColor;
+      pointer-events: none;
+    }
+
+    #hotspotConnectorOverlay {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 14;
+      pointer-events: none;
+      overflow: visible;
+    }
+
+    .hotspotConnectorLine {
+      stroke: rgba(255,255,255,0.95);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      vector-effect: non-scaling-stroke;
+      opacity: 0;
+    }
+
+    .hotspotConnectorDot {
+      fill: #fff;
+      opacity: 0;
+    }
+
+    #hotspotFocusCircle {
+      position: fixed;
+      left: 50%;
+      bottom: 104px;
+      transform: translateX(-50%);
+      width: 156px;
+      height: 156px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.95);
+      background: rgba(0,0,0,0.20);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 15;
+      pointer-events: none;
+      box-sizing: border-box;
+      overflow: visible;
+      transition:
+        background 0.25s ease,
+        border-color 0.25s ease,
+        backdrop-filter 0.25s ease;
+    }
+
+    #hotspotThumbnailStage {
+      position: absolute;
+      left: 7px;
+      right: 7px;
+      bottom: 6px;
+      height: 190%;
+      pointer-events: auto;
+      cursor: pointer;
+      overflow: hidden;
+      /*
+        This creates the blue-mask shape from your sketch:
+        straight vertical sides, open above the circle, and a rounded bottom
+        that sits just inside the circle.
+      */
+      border-radius: 0 0 999px 999px;
+      perspective: 900px;
+      transform-style: preserve-3d;
+    }
+
+    .hotspotFocusThumbnail {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: center bottom;
+      transform: translateX(-50%) rotateY(0deg);
+      transform-origin: center center;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      backface-visibility: hidden;
+      will-change: transform;
+      transition-property: transform;
+      transition-duration: 0.95s;
+    }
+
+    .hotspotFocusThumbnail.is-visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) rotateY(0deg);
+    }
+
+    /*
+      Front-view flip:
+      the left edge turns away while the right edge turns toward the viewer.
+    */
+    .hotspotFocusThumbnail.is-exiting {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) rotateY(-90deg);
+      transition-timing-function: cubic-bezier(0.42, 0, 1, 1);
+    }
+
+    /*
+      The incoming image completes the same flip motion from the opposite side.
+    */
+    .hotspotFocusThumbnail.is-entering {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) rotateY(90deg);
+      transition: none;
+    }
+
+    .hotspotFocusThumbnail.is-entering.is-flipping-in {
+      transform: translateX(-50%) rotateY(0deg);
+      transition-property: transform;
+      transition-timing-function: cubic-bezier(0, 0, 0.58, 1);
+    }
+
+    #hotspotFocusClose {
+      position: absolute;
+      top: -30px;
+      right: -30px;
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.50);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #000;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      pointer-events: auto;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.28);
+      white-space: nowrap;
+      transition:
+        transform 0.2s ease,
+        width 0.25s ease,
+        height 0.25s ease,
+        border-radius 0.25s ease,
+        top 0.25s ease,
+        right 0.25s ease,
+        left 0.25s ease,
+        background 0.25s ease,
+        color 0.25s ease,
+        font-size 0.25s ease;
+    }
+
+    #hotspotFocusClose:hover {
+      transform: scale(1.06);
+    }
+
+    #hotspotFocusCircle.is-disabled {
+      background: transparent;
+      border-color: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    #hotspotFocusCircle.is-disabled .hotspotFocusThumbnail {
+      opacity: 0 !important;
+    }
+
+    #hotspotFocusCircle.is-disabled #hotspotThumbnailStage {
+      pointer-events: none;
+      cursor: default;
+    }
+
+    #hotspotFocusCircle.is-disabled #hotspotFocusClose {
+      left: 50%;
+      right: auto;
+      top: auto;
+      bottom: 0;
+      width: 154px;
+      height: 36px;
+      border-radius: 999px;
+      transform: translate(-50%, 0);
+      background: rgba(0,0,0,0.20);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #fff;
+      font-size: 11px;
+      letter-spacing: 0.055em;
+    }
+
+    #hotspotFocusCircle.is-disabled #hotspotFocusClose:hover {
+      transform: translate(-50%, 0) scale(1.04);
+    }
+
     @media (max-width: 600px) {
       #frameButtons {
         bottom: 18px;
-        gap: 6px;
-        padding: 8px 9px;
+        gap: 2px 14px;
+        max-width: calc(100vw - 24px);
+        padding: 10px 14px;
+        border-radius: 14px;
       }
 
       .frameButton {
         min-width: auto;
-        height: 34px;
-        padding: 0 10px;
+        height: 28px;
+        padding: 0;
         font-size: 9px;
       }
 
@@ -297,6 +551,19 @@
         bottom: 18px;
         padding: 11px 22px;
         font-size: 13px;
+      }
+
+      #panToggleButton {
+        left: 14px;
+        bottom: 18px;
+        width: 40px;
+        height: 40px;
+      }
+
+      #hotspotFocusCircle {
+        bottom: 92px;
+        width: 124px;
+        height: 124px;
       }
 
       #brightnessControl {
@@ -316,38 +583,71 @@
 
 <body>
   <div id="viewer">
-    <div id="panoramaStrip"></div>
-  </div>
+    <div id="scenePlane">
+      <div id="panoramaStrip"></div>
 
   <!-- Hotspots -->
-  <button class="hotspot" id="hotspot1" aria-label="RANDOM PLANK">
-    <span class="hotspotLabel">RANDOM PLANK</span>
-  </button>
-  <button class="hotspot" id="hotspot2" aria-label="BOARD + BATTEN">
-    <span class="hotspotLabel">BOARD + BATTEN</span>
-  </button>
-  <button class="hotspot" id="hotspot3" aria-label="BOARD + BATTEN">
-    <span class="hotspotLabel">BOARD + BATTEN</span>
-  </button>
-  <button class="hotspot" id="hotspot4" aria-label="CUSTOM CUT">
+  <button class="hotspot" id="hotspot1" aria-label="CUSTOM CUT">
     <span class="hotspotLabel">CUSTOM CUT</span>
   </button>
-  <button class="hotspot" id="hotspot5" aria-label="NEO LUMBER">
+  <button class="hotspot" id="hotspot2" aria-label="RANDOM PLANK">
+    <span class="hotspotLabel">RANDOM PLANK</span>
+  </button>
+  <button class="hotspot" id="hotspot3" aria-label="METAL CRAFT">
+    <span class="hotspotLabel">METAL CRAFT</span>
+  </button>
+  <button class="hotspot" id="hotspot4" aria-label="BOARD + BATTEN">
+    <span class="hotspotLabel">BOARD + BATTEN</span>
+  </button>
+  <button class="hotspot" id="hotspot5" aria-label="SOFFIT">
+    <span class="hotspotLabel">SOFFIT</span>
+  </button>
+  <button class="hotspot" id="hotspot6" aria-label="BOARD + BATTEN">
+    <span class="hotspotLabel">BOARD + BATTEN</span>
+  </button>
+  <button class="hotspot" id="hotspot7" aria-label="LUX LAP">
+    <span class="hotspotLabel">LUX LAP</span>
+  </button>
+  <button class="hotspot" id="hotspot8" aria-label="CHANNEL SIDING">
+    <span class="hotspotLabel">CHANNEL SIDING</span>
+  </button>
+  <button class="hotspot" id="hotspot9" aria-label="NEO LUMBER">
     <span class="hotspotLabel">NEO LUMBER</span>
+  </button>
+    </div>
+  </div>
+
+  <svg id="hotspotConnectorOverlay" aria-hidden="true">
+    <line id="hotspotConnectorLineA" class="hotspotConnectorLine" x1="0" y1="0" x2="0" y2="0"></line>
+    <circle id="hotspotConnectorDotA" class="hotspotConnectorDot" cx="0" cy="0" r="3.5"></circle>
+
+    <line id="hotspotConnectorLineB" class="hotspotConnectorLine" x1="0" y1="0" x2="0" y2="0"></line>
+    <circle id="hotspotConnectorDotB" class="hotspotConnectorDot" cx="0" cy="0" r="3.5"></circle>
+  </svg>
+
+  <div id="hotspotFocusCircle" class="is-disabled">
+    <div id="hotspotThumbnailStage" aria-hidden="true">
+      <img id="hotspotFocusThumbnailA" class="hotspotFocusThumbnail" alt="" draggable="false" />
+      <img id="hotspotFocusThumbnailB" class="hotspotFocusThumbnail" alt="" draggable="false" />
+    </div>
+    <button id="hotspotFocusClose" type="button" aria-label="Show thumbnails">SHOW THUMBNAILS</button>
+  </div>
+
+  <button id="panToggleButton" type="button" aria-label="Pause automatic panning" title="Pause automatic panning">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="6" y="4" width="4" height="16"></rect>
+      <rect x="14" y="4" width="4" height="16"></rect>
+    </svg>
   </button>
 
   <button id="sequenceBackButton">BACK</button>
 
   <div id="brightnessControl" aria-label="Brightness control">
     <span>BRIGHTNESS</span>
-    <input id="brightnessSlider" type="range" min="0.5" max="1.5" step="0.01" value="1.2" aria-label="Adjust brightness" />
+    <input id="brightnessSlider" type="range" min="0.5" max="1.5" step="0.01" value="1.0" aria-label="Adjust brightness" />
   </div>
 
-  <div id="frameButtons">
-    <button class="frameButton" data-frame="0">RANDOM PLANK</button>
-    <button class="frameButton" data-frame="1">BOARD + BATTEN</button>
-    <button class="frameButton" data-frame="2">NEO LUMER</button>
-  </div>
+  <div id="frameButtons" aria-label="Hotspot navigation"></div>
 
   <div id="infoBox">
     <h2 id="infoTitle">Hotspot</h2>
@@ -357,13 +657,36 @@
 
   <script>
     const container = document.getElementById("viewer");
+    const scenePlane = document.getElementById("scenePlane");
     const panoramaStrip = document.getElementById("panoramaStrip");
     const frameButtonsWrapper = document.getElementById("frameButtons");
-    const frameButtons = Array.from(document.querySelectorAll(".frameButton"));
+    let frameButtons = [];
     const sequenceBackButton = document.getElementById("sequenceBackButton");
     const infoBox = document.getElementById("infoBox");
     const brightnessControl = document.getElementById("brightnessControl");
     const brightnessSlider = document.getElementById("brightnessSlider");
+    const panToggleButton = document.getElementById("panToggleButton");
+    const hotspotConnectorLineA = document.getElementById("hotspotConnectorLineA");
+    const hotspotConnectorDotA = document.getElementById("hotspotConnectorDotA");
+    const hotspotConnectorLineB = document.getElementById("hotspotConnectorLineB");
+    const hotspotConnectorDotB = document.getElementById("hotspotConnectorDotB");
+    const hotspotFocusCircle = document.getElementById("hotspotFocusCircle");
+    const hotspotFocusThumbnailA = document.getElementById("hotspotFocusThumbnailA");
+    const hotspotFocusThumbnailB = document.getElementById("hotspotFocusThumbnailB");
+    const hotspotFocusClose = document.getElementById("hotspotFocusClose");
+
+    let hotspotConnectorEnabled = false;
+    let thumbnailsWereOpenBeforeSequence = false;
+    let currentThumbnailKey = "";
+    let activeThumbnailElement = hotspotFocusThumbnailA;
+    let inactiveThumbnailElement = hotspotFocusThumbnailB;
+    let thumbnailSwapToken = 0;
+    let recentThumbnailPanSpeed = 0;
+    let connectorActiveHotspot = null;
+    let connectorOutgoingHotspot = null;
+    let connectorTransitionStart = 0;
+    let connectorTransitioning = false;
+    const connectorTransitionDuration = 850;
 
     const frameFolder = "180";
     const frameCount = 3;
@@ -383,44 +706,36 @@
       To add more later, add another object here with:
       frame, hotspotText, folder, prefix, count
     */
+    /*
+      Each unique hotspot has a 30-frame JPG sequence.
+
+      Folder: hotspot title
+      Files:  hotspot title + 00 through 29
+
+      Examples:
+      CUSTOM CUT/CUSTOM CUT00.jpg
+      CUSTOM CUT/CUSTOM CUT29.jpg
+    */
     const sequenceConfigs = [
-      {
-        key: "randomPlank",
-        frame: 0,
-        hotspotText: "RANDOM PLANK",
-        folder: "RP",
-        prefix: "RP",
-        count: 58,
-        pad: 2,
-        extension: "jpg",
-        fps: 24
-      },
-      {
-        key: "boardBatten",
-        frame: 1,
-        hotspotText: "BOARD + BATTEN",
-        folder: "B+B",
-        prefix: "B+B",
-        count: 58,
-        pad: 2,
-        extension: "jpg",
-        fps: 24
-      },
-      {
-        key: "neoLumber",
-        frame: 2,
-        hotspotText: "NEO LUMBER",
-        folder: "Neo",
-        prefix: "Neo",
-        count: 75,
-        pad: 2,
-        extension: "jpg",
-        fps: 24
-      }
+      { key: "customCut",     frame: 0, hotspotText: "CUSTOM CUT",      folder: "CUSTOM CUT",      prefix: "CUSTOM CUT",      count: 30, pad: 2, extension: "jpg", fps: 24 },
+      { key: "randomPlank",   frame: 0, hotspotText: "RANDOM PLANK",    folder: "RANDOM PLANK",    prefix: "RANDOM PLANK",    count: 30, pad: 2, extension: "jpg", fps: 24 },
+      { key: "metalCraft",    frame: 0, hotspotText: "METAL CRAFT",     folder: "METAL CRAFT",     prefix: "METAL CRAFT",     count: 30, pad: 2, extension: "jpg", fps: 24 },
+      { key: "boardBatten",   frame: 1, hotspotText: "BOARD + BATTEN",  folder: "BOARD + BATTEN",  prefix: "BOARD + BATTEN",  count: 30, pad: 2, extension: "jpg", fps: 24 },
+      { key: "soffit",        frame: 1, hotspotText: "SOFFIT",          folder: "SOFFIT",          prefix: "SOFFIT",          count: 30, pad: 2, extension: "jpg", fps: 24 },
+      { key: "luxLap",        frame: 1, hotspotText: "LUX LAP",         folder: "LUX LAP",         prefix: "LUX LAP",         count: 30, pad: 2, extension: "jpg", fps: 24 },
+      { key: "channelSiding", frame: 2, hotspotText: "CHANNEL SIDING",  folder: "CHANNEL SIDING",  prefix: "CHANNEL SIDING",  count: 30, pad: 2, extension: "jpg", fps: 24 },
+      { key: "neoLumber",     frame: 2, hotspotText: "NEO LUMBER",      folder: "NEO LUMBER",      prefix: "NEO LUMBER",      count: 30, pad: 2, extension: "jpg", fps: 24 }
     ];
 
     const sequenceByFrame = new Map();
     const sequenceByHotspotText = new Map();
+
+    function normalizeHotspotKey(value) {
+      return String(value || "")
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
+    }
 
     sequenceConfigs.forEach((config) => {
       config.frames = Array.from({ length: config.count }, (_, i) => {
@@ -432,10 +747,12 @@
       config.imageElements = [];
 
       sequenceByFrame.set(config.frame, config);
-      sequenceByHotspotText.set(config.hotspotText.trim().toUpperCase(), config);
+      sequenceByHotspotText.set(normalizeHotspotKey(config.hotspotText), config);
     });
 
     let autoRotate = true;
+    let userPausedAutoRotate = false;
+    let autoRotateDirection = 1;
     let isDragging = false;
     let hotspotsVisible = true;
 
@@ -444,13 +761,39 @@
     let panVelocity = 0;
 
     let previousMouseX = 0;
+    let dragStartX = 0;
+    let dragStartY = 0;
     let hasDraggedThisGesture = false;
+
+    let pointerX = -9999;
+    let pointerY = -9999;
+    let pointerInsideViewer = false;
+
+    const parallaxMaxAngle = 4.5;
+    const parallaxPerspective = 1400;
+    const parallaxEase = 0.075;
+    let parallaxCurrentAngle = 0;
+    let parallaxTargetAngle = 0;
+    let parallaxLockedToNeutral = false;
+    let parallaxReturnActive = false;
+    let parallaxReturnStartAngle = 0;
+    let parallaxReturnStartTime = 0;
+    let parallaxReturnDuration = 0;
+
+    // Large click radius keeps small hotspots easy to activate.
+    // The overstate radius only brightens the hotspot and no longer changes scale.
+    const hotspotHitRadius = 290;
+    const hotspotOverstateRadius = 70;
+
+    let hoverPauseTarget = 0;
+    let hoverPauseStrength = 0;
+    let pendingHotspotHit = null;
 
     const cameraEase = 0.075;
     const dragFriction = 0.94;
     const dragSensitivity = 1.0;
-    const autoRotateSpeed = 0.35;
-    const autoRotateResumeDelay = 3000;
+    const autoRotateSpeed = 0.5;
+    const autoRotateResumeDelay = 1500;
 
     let frameWidth = getPanoFrameSize().width;
     let frameHeight = getPanoFrameSize().height;
@@ -516,9 +859,87 @@
         : 1 - Math.pow(-2 * t + 2, 5) / 2;
     }
 
-    function smoothBellFromCenter(centerStrength) {
-      const t = Math.max(0, Math.min(centerStrength, 1));
-      return 0.5 - 0.5 * Math.cos(Math.PI * t);
+    function blueHotspotCurve(normalizedDistanceFromCenter) {
+      /*
+        Blue-curve hotspot scaling.
+        normalizedDistanceFromCenter is 0 at the screen center and 1 at the screen edge.
+        A Gaussian-style curve avoids the flat-topped / sudden red-curve feeling.
+        Lower curveWidth = smaller/narrower center peak.
+        Higher curveWidth = larger hotspots across more of the screen.
+      */
+      const d = Math.max(0, Math.min(normalizedDistanceFromCenter, 1));
+      const curveWidth = 0.62;
+      const edgeValue = Math.exp(-1 / (curveWidth * curveWidth));
+      const value = Math.exp(-(d * d) / (curveWidth * curveWidth));
+
+      return Math.max(0, Math.min((value - edgeValue) / (1 - edgeValue), 1));
+    }
+
+    function easeInOutSine(t) {
+      const clamped = Math.max(0, Math.min(t, 1));
+      return 0.5 - 0.5 * Math.cos(Math.PI * clamped);
+    }
+
+    function setParallaxTargetFromPointer() {
+      // Parallax removed.
+    }
+
+    function beginParallaxReturn() {
+      // Parallax removed; the panorama remains flat.
+    }
+
+    function forceParallaxNeutral() {
+      scenePlane.style.transform = "none";
+    }
+
+    function releaseParallax() {
+      // Parallax removed.
+    }
+
+    function updateScenePlaneTransform() {
+      scenePlane.style.transform = "none";
+    }
+    function updatePointerPosition(event) {
+      pointerX = event.clientX;
+      pointerY = event.clientY;
+      pointerInsideViewer = true;
+      setParallaxTargetFromPointer();
+    }
+
+    function clearPointerPosition() {
+      pointerX = -9999;
+      pointerY = -9999;
+      pointerInsideViewer = false;
+    }
+
+    function clearHotspotOverstates() {
+      hoverPauseTarget = 0;
+      pendingHotspotHit = null;
+
+      hotspots.forEach((hotspot) => {
+        hotspot.element.classList.remove("is-over");
+      });
+    }
+
+    function getNearestHotspotToPointer(event, radius = hotspotHitRadius) {
+      const x = event.clientX;
+      const y = event.clientY;
+
+      let nearestHotspot = null;
+      let nearestDistance = Infinity;
+
+      hotspots.forEach((hotspot) => {
+        if (!hotspot._visible) return;
+
+        const distance = Math.hypot(hotspot._screenX - x, hotspot._screenY - y);
+
+        if (distance <= radius && distance < nearestDistance) {
+          nearestHotspot = hotspot;
+          nearestDistance = distance;
+        }
+      });
+
+      return nearestHotspot;
     }
 
     function clearPendingArrivalCallback() {
@@ -537,13 +958,18 @@
       }
     }
 
-    function scheduleAutoRotateResume(delay = autoRotateResumeDelay) {
+    function scheduleAutoRotateResume(delay = 1000) {
       clearAutoRotateRestart();
 
       autoRotateRestartTimeout = setTimeout(() => {
         autoRotateRestartTimeout = null;
 
-        if (!isDragging && !buttonTweenActive && !sequencePlaying) {
+        if (
+          !userPausedAutoRotate &&
+          !isDragging &&
+          !buttonTweenActive &&
+          !sequencePlaying
+        ) {
           autoRotate = true;
         }
       }, delay);
@@ -562,6 +988,7 @@
 
       if (!visible) {
         hotspots.forEach((hotspot) => {
+          hotspot.element.classList.remove("is-over");
           hotspot.element.style.opacity = "0";
           hotspot.element.style.pointerEvents = "none";
         });
@@ -635,57 +1062,145 @@
     const hotspots = [
       {
         element: document.getElementById("hotspot1"),
-        label: "RANDOM PLANK",
+        label: "Hotspot 1",
         frame: 0,
-        x: 43.38,
-        y: 64.12,
-        title: "RANDOM PLANK",
-        text: "RANDOM PLANK"
-      },
-      {
-        element: document.getElementById("hotspot2"),
-        label: "BOARD + BATTEN",
-        frame: 1,
-        x: 63.2,
-        y: 57.82,
-        title: "BOARD + BATTEN",
-        text: "BOARD + BATTEN"
-      },
-      {
-        element: document.getElementById("hotspot3"),
-        label: "BOARD + BATTEN",
-        frame: 1,
-        x: 4.92,
-        y: 24.68,
-        title: "BOARD + BATTEN",
-        text: "BOARD + BATTEN"
-      },
-      {
-        element: document.getElementById("hotspot4"),
-        label: "CUSTOM CUT",
-        frame: 1,
-        x: 64.57,
-        y: 20.05,
-        title: "CUSTOM CUT",
+        x: 35.64,
+        y: 33.36,
+        offsetY: 60,
+        title: "Hotspot 1",
         text: "CUSTOM CUT"
       },
       {
+        element: document.getElementById("hotspot2"),
+        label: "Hotspot 2",
+        frame: 0,
+        x: 58.8,
+        y: 60.05,
+        title: "Hotspot 2",
+        text: "RANDOM PLANK"
+      },
+      {
+        element: document.getElementById("hotspot3"),
+        label: "Hotspot 3",
+        frame: 0,
+        x: 93.33,
+        y: 55.75,
+        title: "Hotspot 3",
+        text: "METAL CRAFT"
+      },
+      {
+        element: document.getElementById("hotspot4"),
+        label: "Hotspot 4",
+        frame: 1,
+        x: 16.41,
+        y: 22.06,
+        offsetY: 60,
+        title: "Hotspot 4",
+        text: "BOARD + BATTEN"
+      },
+      {
         element: document.getElementById("hotspot5"),
-        label: "NEO LUMBER",
+        label: "Hotspot 5",
+        frame: 1,
+        x: 40.68,
+        y: 11.08,
+        offsetY: 60,
+        title: "Hotspot 5",
+        text: "SOFFIT"
+      },
+      {
+        element: document.getElementById("hotspot6"),
+        label: "Hotspot 6",
+        frame: 1,
+        x: 67.36,
+        y: 60.48,
+        title: "Hotspot 6",
+        text: "BOARD + BATTEN"
+      },
+      {
+        element: document.getElementById("hotspot7"),
+        label: "Hotspot 7",
+        frame: 1,
+        x: 82.16,
+        y: 9.04,
+        offsetY: 100,
+        title: "Hotspot 7",
+        text: "LUX LAP"
+      },
+      {
+        element: document.getElementById("hotspot8"),
+        label: "Hotspot 8",
         frame: 2,
-        x: 44.12,
-        y: 46.23,
-        title: "NEO LUMBER",
+        x: 15.76,
+        y: 52.09,
+        title: "Hotspot 8",
+        text: "CHANNEL SIDING"
+      },
+      {
+        element: document.getElementById("hotspot9"),
+        label: "Hotspot 9",
+        frame: 2,
+        x: 65.04,
+        y: 21.52,
+        offsetX: -60,
+        offsetY: 60,
+        title: "Hotspot 9",
         text: "NEO LUMBER"
       }
     ];
 
     hotspots.forEach((hotspot) => {
-      const displayName = hotspot.label || hotspot.title;
+      const displayName = hotspot.text || hotspot.label || hotspot.title;
       const label = hotspot.element.querySelector(".hotspotLabel");
       if (label) label.textContent = displayName;
       hotspot.element.setAttribute("aria-label", displayName);
     });
+
+    /*
+      Create one bottom button for each unique hotspot title.
+      Duplicate titles such as BOARD + BATTEN share a single button.
+    */
+    const hotspotButtonTargets = [];
+    const seenHotspotTitles = new Set();
+
+    hotspots.forEach((hotspot) => {
+      const buttonTitle = (hotspot.text || hotspot.label || hotspot.title || "").trim();
+      const normalizedTitle = normalizeHotspotKey(buttonTitle);
+
+      if (!normalizedTitle || seenHotspotTitles.has(normalizedTitle)) return;
+
+      seenHotspotTitles.add(normalizedTitle);
+      hotspotButtonTargets.push({
+        title: buttonTitle,
+        hotspot
+      });
+    });
+
+    frameButtonsWrapper.innerHTML = "";
+
+    hotspotButtonTargets.forEach(({ title, hotspot }) => {
+      const button = document.createElement("button");
+      button.className = "frameButton";
+      button.type = "button";
+      button.textContent = title;
+      button.dataset.frame = String(hotspot.frame);
+      button.dataset.hotspotKey = normalizeHotspotKey(title);
+      button.setAttribute("aria-label", `Go to ${title}`);
+
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+
+        if (sequencePlaying || activeSequence) return;
+
+        frameButtons.forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        activateHotspot(hotspot);
+      });
+
+      frameButtonsWrapper.appendChild(button);
+    });
+
+    frameButtons = Array.from(frameButtonsWrapper.querySelectorAll(".frameButton"));
 
     function getClosestOffsetForFrame(frameIndex) {
       const desiredOffsetInMiddleCopy = totalWidth + frameIndex * frameWidth;
@@ -706,7 +1221,7 @@
       return closestOffset;
     }
 
-    function moveToFrame(frameIndex, onArrive = null) {
+    function moveToFrame(frameIndex, onArrive = null, returnPlaneToNeutral = false) {
       autoRotate = false;
       isDragging = false;
       panVelocity = 0;
@@ -721,6 +1236,10 @@
       buttonTweenEndOffset = getClosestOffsetForFrame(frameIndex);
       buttonTweenStartTime = performance.now();
       buttonArrivalCallback = onArrive;
+
+      if (returnPlaneToNeutral) {
+        beginParallaxReturn(buttonTweenDuration);
+      }
 
       setActiveFrameButton(frameIndex);
     }
@@ -766,10 +1285,13 @@
     }
 
     function updateHotspots() {
+      let strongestHoverPause = 0;
+
       hotspots.forEach((hotspot) => {
         const hotspotBaseX =
           hotspot.frame * frameWidth +
-          (hotspot.x / 100) * frameWidth;
+          (hotspot.x / 100) * frameWidth +
+          (hotspot.offsetX || 0);
 
         let bestScreenX = 0;
         let bestDistance = Infinity;
@@ -785,7 +1307,7 @@
           }
         }
 
-        const screenY = panoStripTop + (hotspot.y / 100) * frameHeight;
+        const screenY = panoStripTop + (hotspot.y / 100) * frameHeight + (hotspot.offsetY || 0);
 
         const visible =
           hotspotsVisible &&
@@ -799,22 +1321,55 @@
         const centerStrength = 1 - normalizedDistance;
 
         /*
-          This is the bell-curve behaviour from your sketch:
-          small on the left, smoothly largest in the center,
-          then smoothly small again on the right.
+          This follows the smoother blue curve from your sketch:
+          small at the edges, gradually growing toward the center,
+          with only a rounded peak instead of a flat plateau.
         */
-        const scaleCurve = smoothBellFromCenter(centerStrength);
-        const scale = 0.38 + scaleCurve * 1.35;
+        const scaleCurve = blueHotspotCurve(normalizedDistance);
+        let scale = 0.36 + scaleCurve * 1.42;
+
+        const distanceToPointer = Math.hypot(bestScreenX - pointerX, screenY - pointerY);
+        const pointerOverStrength =
+          visible &&
+          pointerInsideViewer &&
+          !isDragging &&
+          !sequencePlaying &&
+          !activeSequence
+            ? easeInOutSine(1 - Math.min(distanceToPointer / hotspotOverstateRadius, 1))
+            : 0;
+
+        strongestHoverPause = Math.max(strongestHoverPause, pointerOverStrength);
+
+        /*
+          Hover/overstate no longer changes the hotspot scale.
+          Scale is now controlled only by the center-of-screen blue curve,
+          which prevents the rapid massive/small flickering near the cursor.
+        */
+        hotspot.element.classList.toggle("is-over", pointerOverStrength > 0.12);
 
         /*
           The label is attached to the hotspot's centre pivot.
-          The parent hotspot scales up, so the label naturally travels farther
-          above the hotspot as it reaches the centre.
+          The parent hotspot still scales only from the center-of-screen curve.
           Counter-scale keeps the text size visually consistent.
         */
-        const labelOpacity = Math.pow(centerStrength, 1.85);
-        const labelCounterScale = 1 / scale;
-        const labelDistance = 52;
+        const labelOpacity = Math.max(Math.pow(scaleCurve, 1.35), pointerOverStrength * 0.92);
+
+        /*
+          Let the title grow as the hotspot approaches the center, but only
+          partially counter-scale it so the text growth stays controlled.
+          Also pull the title closer to the hotspot near the peak so it does
+          not drift too far away when the parent hotspot is largest.
+        */
+        const labelCounterScale = 1 / Math.pow(scale, 0.45);
+        const labelDistance = 52 - scaleCurve * 22;
+
+        hotspot._screenX = bestScreenX;
+        hotspot._screenY = screenY;
+        hotspot._visible = visible;
+
+        if (!visible) {
+          hotspot.element.classList.remove("is-over");
+        }
 
         hotspot.element.style.left = `${bestScreenX}px`;
         hotspot.element.style.top = `${screenY}px`;
@@ -825,6 +1380,294 @@
         hotspot.element.style.setProperty("--label-counter-scale", labelCounterScale.toFixed(4));
         hotspot.element.style.setProperty("--label-distance", `${labelDistance}px`);
       });
+
+      hoverPauseTarget = strongestHoverPause > 0.1 ? 1 : 0;
+    }
+
+    function getHotspotThumbnailName(hotspot) {
+      return (hotspot?.text || hotspot?.label || hotspot?.title || "").trim();
+    }
+
+    function resetThumbnailElement(element) {
+      element.classList.remove(
+        "is-visible",
+        "is-entering",
+        "is-exiting",
+        "is-flipping-in"
+      );
+      element.style.removeProperty("opacity");
+      element.style.removeProperty("visibility");
+      element.style.removeProperty("transition-duration");
+      element.onload = null;
+      element.onerror = null;
+    }
+
+    function hideAllThumbnails() {
+      thumbnailSwapToken += 1;
+
+      [hotspotFocusThumbnailA, hotspotFocusThumbnailB].forEach((element) => {
+        resetThumbnailElement(element);
+        element.style.opacity = "0";
+      });
+    }
+
+    function getThumbnailHalfFlipDuration() {
+      /*
+        Faster manual panning shortens the flip. At normal automatic-pan speed,
+        the animation remains slow enough to clearly read.
+      */
+      const effectiveSpeed = Math.max(
+        recentThumbnailPanSpeed,
+        Math.abs(panVelocity) * 5,
+        autoRotate ? autoRotateSpeed : 0
+      );
+
+      return Math.round(
+        Math.max(260, Math.min(950, 950 / (1 + effectiveSpeed * 0.06)))
+      );
+    }
+
+    function updateHotspotThumbnail(hotspot, force = false) {
+      if (!hotspot || !hotspotConnectorEnabled) return;
+
+      const thumbnailName = getHotspotThumbnailName(hotspot);
+      if (!thumbnailName) return;
+      if (!force && thumbnailName === currentThumbnailKey) return;
+
+      currentThumbnailKey = thumbnailName;
+      const swapToken = ++thumbnailSwapToken;
+      const nextElement = inactiveThumbnailElement;
+      const previousElement = activeThumbnailElement;
+      const encodedFilename = encodeURIComponent(thumbnailName) + ".png";
+
+      resetThumbnailElement(nextElement);
+      nextElement.alt = thumbnailName;
+      nextElement.classList.add("is-entering");
+      nextElement.src = `Thumbnails/${encodedFilename}`;
+
+      const revealNext = () => {
+        if (swapToken !== thumbnailSwapToken || !hotspotConnectorEnabled) return;
+
+        const halfFlipDuration = getThumbnailHalfFlipDuration();
+
+        /*
+          OUTGOING HALF:
+          The current PNG begins gently, then continues at speed with no
+          ease-out until it is exactly edge-on. The right side rotates toward
+          the viewer and the left side rotates away.
+        */
+        resetThumbnailElement(nextElement);
+        nextElement.alt = thumbnailName;
+        nextElement.src = `Thumbnails/${encodedFilename}`;
+
+        previousElement.style.transitionDuration = `${halfFlipDuration}ms`;
+        previousElement.classList.remove(
+          "is-visible",
+          "is-entering",
+          "is-flipping-in"
+        );
+        previousElement.classList.add("is-exiting");
+
+        setTimeout(() => {
+          if (swapToken !== thumbnailSwapToken || !hotspotConnectorEnabled) return;
+
+          /*
+            At the exact edge-on point, completely remove the outgoing PNG.
+            This guarantees that multiple thumbnails can never remain layered.
+          */
+          resetThumbnailElement(previousElement);
+
+          /*
+            INCOMING HALF:
+            The new PNG appears only as an edge-on line, then continues rotating
+            in the same direction into full view. It starts immediately with no
+            ease-in and gently eases out as it faces the viewer.
+          */
+          resetThumbnailElement(nextElement);
+          nextElement.style.transitionDuration = `${halfFlipDuration}ms`;
+          nextElement.classList.add("is-entering");
+
+          // Force the browser to commit the edge-on starting state.
+          void nextElement.offsetWidth;
+
+          requestAnimationFrame(() => {
+            if (swapToken !== thumbnailSwapToken || !hotspotConnectorEnabled) return;
+            nextElement.classList.add("is-flipping-in");
+          });
+
+          setTimeout(() => {
+            if (swapToken !== thumbnailSwapToken || !hotspotConnectorEnabled) return;
+
+            nextElement.classList.remove("is-entering", "is-flipping-in");
+            nextElement.classList.add("is-visible");
+
+            activeThumbnailElement = nextElement;
+            inactiveThumbnailElement = previousElement;
+          }, halfFlipDuration);
+        }, halfFlipDuration);
+      };
+
+      nextElement.onload = revealNext;
+      nextElement.onerror = () => {
+        if (swapToken !== thumbnailSwapToken) return;
+        resetThumbnailElement(nextElement);
+      };
+
+      if (nextElement.complete && nextElement.naturalWidth > 0) {
+        revealNext();
+      }
+    }
+
+    function easeInOutCubic(t) {
+      return t < 0.5
+        ? 4 * t * t * t
+        : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function hideConnectorPair(line, dot) {
+      line.style.opacity = "0";
+      dot.style.opacity = "0";
+    }
+
+    function drawConnectorPair(line, dot, hotspot, progress, circleCenterX, circleCenterY) {
+      if (!hotspot || !hotspot._visible) {
+        hideConnectorPair(line, dot);
+        return;
+      }
+
+      const hotspotX = hotspot._screenX;
+      const hotspotY = hotspot._screenY;
+      const endX = circleCenterX + (hotspotX - circleCenterX) * progress;
+      const endY = circleCenterY + (hotspotY - circleCenterY) * progress;
+
+      line.setAttribute("x1", circleCenterX.toFixed(2));
+      line.setAttribute("y1", circleCenterY.toFixed(2));
+      line.setAttribute("x2", endX.toFixed(2));
+      line.setAttribute("y2", endY.toFixed(2));
+
+      /*
+        Keep the small dot anchored to the hotspot itself while the line grows
+        outward from the large circle toward it.
+      */
+      dot.setAttribute("cx", hotspotX.toFixed(2));
+      dot.setAttribute("cy", hotspotY.toFixed(2));
+
+      line.style.opacity = progress > 0.001 ? "1" : "0";
+      dot.style.opacity = "1";
+    }
+
+    function updateHotspotConnector(now = performance.now()) {
+      if (
+        !hotspotConnectorEnabled ||
+        !hotspotsVisible ||
+        sequencePlaying ||
+        activeSequence
+      ) {
+        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
+        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB);
+        return;
+      }
+
+      let focusHotspot = null;
+      let closestToCenter = Infinity;
+      const centerX = window.innerWidth / 2;
+
+      hotspots.forEach((hotspot) => {
+        if (!hotspot._visible) return;
+
+        const distance = Math.abs(hotspot._screenX - centerX);
+        if (distance < closestToCenter) {
+          closestToCenter = distance;
+          focusHotspot = hotspot;
+        }
+      });
+
+      if (!focusHotspot) {
+        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
+        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB);
+        return;
+      }
+
+      if (!connectorActiveHotspot) {
+        connectorActiveHotspot = focusHotspot;
+        connectorOutgoingHotspot = null;
+        connectorTransitionStart = now;
+        connectorTransitioning = true;
+        updateHotspotThumbnail(connectorActiveHotspot);
+      } else if (focusHotspot !== connectorActiveHotspot) {
+        connectorOutgoingHotspot = connectorActiveHotspot;
+        connectorActiveHotspot = focusHotspot;
+        connectorTransitionStart = now;
+        connectorTransitioning = true;
+        updateHotspotThumbnail(connectorActiveHotspot);
+      }
+
+      const circleRect = hotspotFocusCircle.getBoundingClientRect();
+      const circleCenterX = circleRect.left + circleRect.width / 2;
+      const circleCenterY = circleRect.top + circleRect.height / 2;
+
+      if (connectorTransitioning) {
+        const rawProgress = Math.max(
+          0,
+          Math.min((now - connectorTransitionStart) / connectorTransitionDuration, 1)
+        );
+        const easedProgress = easeInOutCubic(rawProgress);
+
+        /*
+          Two independent lines animate at the same time:
+          - The outgoing line retracts from its hotspot back into the large circle.
+          - The incoming line extends from the large circle toward its hotspot.
+          Their hotspot dots never jump or travel between hotspots.
+        */
+        if (connectorOutgoingHotspot) {
+          drawConnectorPair(
+            hotspotConnectorLineA,
+            hotspotConnectorDotA,
+            connectorOutgoingHotspot,
+            1 - easedProgress,
+            circleCenterX,
+            circleCenterY
+          );
+        } else {
+          hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
+        }
+
+        drawConnectorPair(
+          hotspotConnectorLineB,
+          hotspotConnectorDotB,
+          connectorActiveHotspot,
+          easedProgress,
+          circleCenterX,
+          circleCenterY
+        );
+
+        if (rawProgress >= 1) {
+          connectorTransitioning = false;
+          connectorOutgoingHotspot = null;
+
+          hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
+          drawConnectorPair(
+            hotspotConnectorLineB,
+            hotspotConnectorDotB,
+            connectorActiveHotspot,
+            1,
+            circleCenterX,
+            circleCenterY
+          );
+        }
+
+        return;
+      }
+
+      hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
+      drawConnectorPair(
+        hotspotConnectorLineB,
+        hotspotConnectorDotB,
+        connectorActiveHotspot,
+        1,
+        circleCenterX,
+        circleCenterY
+      );
     }
 
     function getCurrentFrameIndex() {
@@ -835,10 +1678,15 @@
     }
 
     function setActiveFrameButton(frameIndex) {
-      frameButtons.forEach((button) => {
-        const buttonFrame = Number(button.dataset.frame);
-        button.classList.toggle("active", buttonFrame === frameIndex);
-      });
+      /*
+        Several hotspot titles can belong to the same panorama frame, so do not
+        automatically mark every button on that frame as active.
+      */
+      const activeButton = frameButtons.find((button) => button.classList.contains("active"));
+
+      if (activeButton && Number(activeButton.dataset.frame) !== frameIndex) {
+        activeButton.classList.remove("active");
+      }
     }
 
     function updateActiveFrameButton() {
@@ -920,8 +1768,10 @@
         setFrameButtonsVisible(true);
         resetSequenceFrameToDefault(finishedSequence);
         setHotspotsVisible(true);
+        releaseParallax();
+        restoreThumbnailFeatureAfterSequence();
 
-        scheduleAutoRotateResume(3000);
+        scheduleAutoRotateResume(1500);
       }
     }
 
@@ -976,6 +1826,7 @@
       activeSequence = config;
       autoRotate = false;
       panVelocity = 0;
+      forceParallaxNeutral();
       clearAutoRotateRestart();
       clearPendingArrivalCallback();
 
@@ -1006,15 +1857,19 @@
       clearPendingArrivalCallback();
 
       moveToFrame(config.frame, () => {
+        forceParallaxNeutral();
         playSequence(config, 1);
-      });
+      }, true);
     }
 
     function animate() {
       requestAnimationFrame(animate);
 
+      hoverPauseStrength += (hoverPauseTarget - hoverPauseStrength) * 0.08;
+      recentThumbnailPanSpeed *= 0.90;
+
       if (autoRotate && !isDragging && !buttonTweenActive && !sequencePlaying) {
-        targetOffset += autoRotateSpeed;
+        targetOffset += autoRotateSpeed * autoRotateDirection * (1 - hoverPauseStrength);
       }
 
       if (!isDragging && !buttonTweenActive && !sequencePlaying) {
@@ -1028,12 +1883,36 @@
 
       updatePanorama();
       updateHotspots();
+      updateHotspotConnector(performance.now());
+      updateScenePlaneTransform();
       wrapOffsetsIfNeeded();
       updateActiveFrameButton();
     }
 
+    container.addEventListener("pointerenter", (event) => {
+      updatePointerPosition(event);
+    });
+
+    container.addEventListener("pointerleave", () => {
+      clearPointerPosition();
+      clearHotspotOverstates();
+    });
+
     container.addEventListener("pointerdown", (event) => {
+      updatePointerPosition(event);
+
       if (sequencePlaying || activeSequence) return;
+
+      /*
+        Important fix:
+        Previously, if the pointer started inside the large invisible hotspot
+        hit radius, this handler returned before starting a drag. That made
+        panning feel frozen near hotspots. Now we still remember the possible
+        hotspot click, but we always start the pan gesture. If the user moves
+        more than a few pixels, it becomes a drag and the hotspot click is
+        cancelled.
+      */
+      pendingHotspotHit = getNearestHotspotToPointer(event);
 
       isDragging = true;
       autoRotate = false;
@@ -1044,46 +1923,83 @@
 
       panVelocity = 0;
       hasDraggedThisGesture = false;
+      dragStartX = event.clientX;
+      dragStartY = event.clientY;
       previousMouseX = event.clientX;
 
       container.classList.add("dragging");
-      container.setPointerCapture(event.pointerId);
+
+      if (container.setPointerCapture) {
+        container.setPointerCapture(event.pointerId);
+      }
+
+      event.preventDefault();
     });
 
     container.addEventListener("pointermove", (event) => {
+      updatePointerPosition(event);
+
       if (!isDragging || sequencePlaying || activeSequence) return;
 
       const deltaX = event.clientX - previousMouseX;
+      recentThumbnailPanSpeed = Math.max(recentThumbnailPanSpeed, Math.abs(deltaX));
 
-      if (Math.abs(deltaX) > 1) {
+      const totalGestureDistance = Math.hypot(
+        event.clientX - dragStartX,
+        event.clientY - dragStartY
+      );
+
+      if (totalGestureDistance > 5) {
         hasDraggedThisGesture = true;
+        pendingHotspotHit = null;
       }
 
       targetOffset -= deltaX * dragSensitivity;
       panVelocity = -deltaX * dragSensitivity * 0.18;
 
+      if (Math.abs(deltaX) > 0.01) {
+        autoRotateDirection = deltaX < 0 ? 1 : -1;
+      }
+
       previousMouseX = event.clientX;
+      event.preventDefault();
     });
 
     container.addEventListener("pointerup", (event) => {
+      const hotspotToActivate = pendingHotspotHit;
+      pendingHotspotHit = null;
+
       isDragging = false;
       container.classList.remove("dragging");
 
-      if (container.hasPointerCapture(event.pointerId)) {
+      if (container.hasPointerCapture && container.hasPointerCapture(event.pointerId)) {
+        container.releasePointerCapture(event.pointerId);
+      }
+
+      if (hotspotToActivate && !hasDraggedThisGesture && !sequencePlaying && !activeSequence) {
+        activateHotspot(hotspotToActivate);
+        event.preventDefault();
+        return;
+      }
+
+      if (hasDraggedThisGesture) {
+        scheduleAutoRotateResume(1000);
+      }
+
+      event.preventDefault();
+    });
+
+    container.addEventListener("pointercancel", (event) => {
+      pendingHotspotHit = null;
+      isDragging = false;
+      container.classList.remove("dragging");
+
+      if (container.hasPointerCapture && container.hasPointerCapture(event.pointerId)) {
         container.releasePointerCapture(event.pointerId);
       }
 
       if (hasDraggedThisGesture) {
-        scheduleAutoRotateResume();
-      }
-    });
-
-    container.addEventListener("pointercancel", () => {
-      isDragging = false;
-      container.classList.remove("dragging");
-
-      if (hasDraggedThisGesture) {
-        scheduleAutoRotateResume();
+        scheduleAutoRotateResume(1000);
       }
     });
 
@@ -1099,55 +2015,54 @@
       clearPendingArrivalCallback();
 
       updateHotspots();
+      updateHotspotConnector();
       updateActiveFrameButton();
     });
 
-    frameButtons.forEach((button) => {
-      button.addEventListener("click", () => {
-        if (sequencePlaying || activeSequence) return;
-
-        const frameIndex = Number(button.dataset.frame);
-        const config = sequenceByFrame.get(frameIndex);
-
-        clearAutoRotateRestart();
-        showBackButton(false);
-
-        if (config) {
-          startConfiguredSequence(config);
-        } else {
-          moveToFrame(frameIndex);
-        }
-      });
-    });
 
     sequenceBackButton.addEventListener("click", () => {
       if (sequencePlaying || !activeSequence) return;
       playSequence(activeSequence, -1);
     });
 
-    hotspots.forEach((hotspot) => {
-      hotspot.element.addEventListener("click", () => {
-        if (sequencePlaying || activeSequence) return;
+    function activateHotspot(hotspot) {
+      if (sequencePlaying || activeSequence) return;
 
-        const hotspotKey = (hotspot.text || hotspot.label || hotspot.title || "").trim().toUpperCase();
-        const config = sequenceByHotspotText.get(hotspotKey);
+      const hotspotKey = normalizeHotspotKey(hotspot.text || hotspot.label || hotspot.title);
+      const config = sequenceByHotspotText.get(hotspotKey);
 
-        autoRotate = false;
-        buttonTweenActive = false;
+      autoRotate = false;
+      panVelocity = 0;
 
-        clearAutoRotateRestart();
-        clearPendingArrivalCallback();
+      clearAutoRotateRestart();
+      clearPendingArrivalCallback();
+      showBackButton(false);
+      infoBox.style.display = "none";
+      hideThumbnailFeatureForSequence();
 
-        panVelocity = 0;
-
+      /*
+        Every hotspot and every bottom button first uses the same smooth camera
+        tween to return to its panorama frame. This guarantees that the first
+        frame of the future image sequence will line up with the panorama.
+      */
+      moveToFrame(hotspot.frame, () => {
         if (config) {
-          startConfiguredSequence(config);
+          playSequence(config, 1);
           return;
         }
 
-        document.getElementById("infoTitle").textContent = hotspot.title;
-        document.getElementById("infoText").textContent = hotspot.text;
+        document.getElementById("infoTitle").textContent =
+          hotspot.text || hotspot.title;
+        document.getElementById("infoText").textContent =
+          "Image sequence coming soon.";
         infoBox.style.display = "block";
+      });
+    }
+
+    hotspots.forEach((hotspot) => {
+      hotspot.element.addEventListener("click", (event) => {
+        event.stopPropagation();
+        activateHotspot(hotspot);
       });
     });
 
@@ -1156,11 +2071,141 @@
     });
 
 
+
+    function updatePanToggleButton() {
+      if (userPausedAutoRotate) {
+        panToggleButton.setAttribute("aria-label", "Resume automatic panning");
+        panToggleButton.setAttribute("title", "Resume automatic panning");
+        panToggleButton.innerHTML =
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>';
+      } else {
+        panToggleButton.setAttribute("aria-label", "Pause automatic panning");
+        panToggleButton.setAttribute("title", "Pause automatic panning");
+        panToggleButton.innerHTML =
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+      }
+    }
+
+    panToggleButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      userPausedAutoRotate = !userPausedAutoRotate;
+
+      if (userPausedAutoRotate) {
+        autoRotate = false;
+        clearAutoRotateRestart();
+        panVelocity = 0;
+      } else if (!isDragging && !buttonTweenActive && !sequencePlaying) {
+        autoRotate = true;
+      }
+
+      updatePanToggleButton();
+    });
+
+    ["pointerdown", "pointermove", "pointerup"].forEach((eventName) => {
+      panToggleButton.addEventListener(eventName, (event) => {
+        event.stopPropagation();
+      });
+    });
+
+
+    hotspotThumbnailStage.addEventListener("click", (event) => {
+      event.stopPropagation();
+
+      if (
+        !hotspotConnectorEnabled ||
+        !connectorActiveHotspot ||
+        sequencePlaying ||
+        activeSequence
+      ) {
+        return;
+      }
+
+      activateHotspot(connectorActiveHotspot);
+    });
+
+    ["pointerdown", "pointermove", "pointerup"].forEach((eventName) => {
+      hotspotThumbnailStage.addEventListener(eventName, (event) => {
+        event.stopPropagation();
+      });
+    });
+
+    function hideThumbnailFeatureForSequence() {
+      thumbnailsWereOpenBeforeSequence = hotspotConnectorEnabled;
+
+      hotspotConnectorEnabled = false;
+      hotspotFocusCircle.style.display = "none";
+      hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
+      hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB);
+      hideAllThumbnails();
+    }
+
+    function restoreThumbnailFeatureAfterSequence() {
+      hotspotFocusCircle.style.display = "";
+
+      if (thumbnailsWereOpenBeforeSequence) {
+        hotspotConnectorEnabled = true;
+        hotspotFocusCircle.classList.remove("is-disabled");
+        hotspotFocusClose.textContent = "×";
+        hotspotFocusClose.setAttribute("aria-label", "Hide thumbnails");
+
+        connectorTransitionStart = performance.now();
+        connectorOutgoingHotspot = null;
+        connectorTransitioning = true;
+
+        if (connectorActiveHotspot) {
+          [hotspotFocusThumbnailA, hotspotFocusThumbnailB].forEach((element) => {
+            element.style.removeProperty("opacity");
+          });
+
+          currentThumbnailKey = "";
+          updateHotspotThumbnail(connectorActiveHotspot, true);
+        }
+      } else {
+        hotspotConnectorEnabled = false;
+        hotspotFocusCircle.classList.add("is-disabled");
+        hotspotFocusClose.textContent = "SHOW THUMBNAILS";
+        hotspotFocusClose.setAttribute("aria-label", "Show thumbnails");
+        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
+        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB);
+        hideAllThumbnails();
+      }
+    }
+
+    hotspotFocusClose.addEventListener("click", (event) => {
+      event.stopPropagation();
+      hotspotConnectorEnabled = !hotspotConnectorEnabled;
+
+      if (!hotspotConnectorEnabled) {
+        hotspotFocusCircle.classList.add("is-disabled");
+        hotspotFocusClose.textContent = "SHOW THUMBNAILS";
+        hotspotFocusClose.setAttribute("aria-label", "Show thumbnails");
+        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
+        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB);
+        hideAllThumbnails();
+      } else {
+        hotspotFocusCircle.classList.remove("is-disabled");
+        hotspotFocusClose.textContent = "×";
+        hotspotFocusClose.setAttribute("aria-label", "Hide thumbnails");
+        connectorTransitionStart = performance.now();
+        connectorOutgoingHotspot = null;
+        connectorTransitioning = true;
+
+        if (connectorActiveHotspot) {
+          [hotspotFocusThumbnailA, hotspotFocusThumbnailB].forEach((element) => {
+            element.style.removeProperty("opacity");
+          });
+
+          currentThumbnailKey = "";
+          updateHotspotThumbnail(connectorActiveHotspot, true);
+        }
+      }
+    });
+
     brightnessSlider.addEventListener("input", () => {
       panoramaStrip.style.setProperty("--pano-brightness", brightnessSlider.value);
     });
 
-    // Default is 20% brighter.
+    // Default brightness is normal / unadjusted.
     panoramaStrip.style.setProperty("--pano-brightness", brightnessSlider.value);
 
     ["pointerdown", "pointermove", "pointerup", "click"].forEach((eventName) => {
@@ -1168,6 +2213,13 @@
         event.stopPropagation();
       });
     });
+
+    hotspotFocusCircle.classList.add("is-disabled");
+    hotspotFocusClose.textContent = "SHOW THUMBNAILS";
+    hotspotFocusClose.setAttribute("aria-label", "Show thumbnails");
+    hideAllThumbnails();
+    hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
+    hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB);
 
     buildPanoramaStrip();
 
