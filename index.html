@@ -970,6 +970,171 @@
       }
     }
 
+
+    /*
+      Mobile sequence-card refinements, applied after the earlier responsive
+      rules so portrait and landscape can use genuinely different layouts.
+    */
+
+    /* PORTRAIT: return to a vertical card with LEARN MORE below the Lottie. */
+    @media (hover: none) and (pointer: coarse) and (orientation: portrait),
+           (max-width: 700px) and (orientation: portrait) {
+      #sequenceLottiePanel {
+        inset: 0;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        transform: none;
+        padding:
+          max(12px, env(safe-area-inset-top))
+          max(12px, env(safe-area-inset-right))
+          max(76px, calc(env(safe-area-inset-bottom) + 66px))
+          max(12px, env(safe-area-inset-left));
+        box-sizing: border-box;
+      }
+
+      #sequenceLottieCard {
+        width: min(94vw, 580px);
+        max-width: 94vw;
+        max-height: calc(100vh - 100px);
+        max-height: calc(100dvh - 100px);
+        padding: 14px 14px 16px;
+        border-radius: 22px;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        box-sizing: border-box;
+      }
+
+      #sequenceLottie {
+        width: min(88vw, 540px);
+        height: min(61vh, 610px);
+        height: min(61dvh, 610px);
+        flex: 0 1 auto;
+      }
+
+      #sequenceLearnMore {
+        margin: 8px 0 0;
+        max-width: none;
+        padding: 10px 20px;
+        font-size: 10px;
+        line-height: 1;
+        white-space: nowrap;
+        text-align: center;
+      }
+
+      #sequenceBackButton {
+        left: 50%;
+        right: auto;
+        top: auto;
+        bottom: max(18px, env(safe-area-inset-bottom));
+        transform: translateX(-50%);
+        padding: 10px 20px;
+        font-size: 10px;
+      }
+
+      #sequenceBackButton:hover {
+        transform: translateX(-50%) scale(1.04);
+      }
+    }
+
+    /*
+      LANDSCAPE: one compact horizontal card. The Lottie and LEARN MORE button
+      sit beside each other, and the blurred background sizes to its contents
+      instead of stretching across most of the screen.
+    */
+    @media (hover: none) and (pointer: coarse) and (orientation: landscape),
+           (max-height: 600px) and (orientation: landscape) {
+      #sequenceLottiePanel {
+        inset: 0;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        transform: none;
+        padding:
+          max(42px, calc(env(safe-area-inset-top) + 36px))
+          max(14px, env(safe-area-inset-right))
+          max(10px, env(safe-area-inset-bottom))
+          max(14px, env(safe-area-inset-left));
+        box-sizing: border-box;
+      }
+
+      #sequenceLottieCard {
+        width: auto;
+        max-width: calc(100vw - 108px);
+        max-height: calc(100vh - 58px);
+        max-height: calc(100dvh - 58px);
+        padding: 9px 12px;
+        border-radius: 17px;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        box-sizing: border-box;
+      }
+
+      #sequenceLottie {
+        width: min(66vw, 700px);
+        height: min(58vh, 320px);
+        height: min(58dvh, 320px);
+        flex: 0 1 auto;
+      }
+
+      #sequenceLearnMore {
+        margin: 0;
+        flex: 0 0 auto;
+        padding: 9px 14px;
+        font-size: 9px;
+        line-height: 1.15;
+        white-space: nowrap;
+      }
+
+      #sequenceBackButton {
+        left: max(10px, env(safe-area-inset-left));
+        right: auto;
+        top: max(9px, env(safe-area-inset-top));
+        bottom: auto;
+        transform: none;
+        padding: 8px 15px;
+        font-size: 9px;
+      }
+
+      #sequenceBackButton:hover {
+        transform: scale(1.04);
+      }
+    }
+
+    /*
+      Very short landscape phones need an even tighter card so browser chrome
+      cannot force the content off-screen.
+    */
+    @media (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 430px) {
+      #sequenceLottiePanel {
+        padding-top: max(38px, calc(env(safe-area-inset-top) + 32px));
+      }
+
+      #sequenceLottieCard {
+        max-width: calc(100vw - 92px);
+        max-height: calc(100dvh - 48px);
+        padding: 7px 10px;
+        gap: 9px;
+        border-radius: 14px;
+      }
+
+      #sequenceLottie {
+        width: min(63vw, 620px);
+        height: min(54dvh, 245px);
+      }
+
+      #sequenceLearnMore {
+        padding: 8px 11px;
+        font-size: 8px;
+      }
+    }
+
   </style>
 </head>
 
