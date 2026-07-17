@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Panorama Viewer</title>
 
   <style>
-    html, body {
+    html,
+    body {
       margin: 0;
       width: 100%;
       height: 100%;
@@ -68,7 +70,7 @@
       width: 37.8px;
       height: 37.8px;
       border-radius: 50%;
-      background: rgba(128,128,128,0.3);
+      background: rgba(128, 128, 128, 0.3);
       border: none;
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
@@ -97,7 +99,7 @@
       height: 37.8px;
       border-radius: 50%;
       border: none;
-      background: rgba(255,255,255,0.18);
+      background: rgba(255, 255, 255, 0.18);
       transform: translate(-50%, -50%) scale(0.82);
       opacity: 0.7;
       pointer-events: none;
@@ -110,10 +112,12 @@
         transform: translate(-50%, -50%) scale(0.82);
         opacity: 0.7;
       }
+
       45% {
         transform: translate(-50%, -50%) scale(2.0);
         opacity: 0;
       }
+
       100% {
         transform: translate(-50%, -50%) scale(2.0);
         opacity: 0;
@@ -128,8 +132,8 @@
       width: 17px;
       height: 17px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.5);
-      box-shadow: 0 2px 9px rgba(0,0,0,0.28);
+      background: rgba(255, 255, 255, 0.5);
+      box-shadow: 0 2px 9px rgba(0, 0, 0, 0.28);
       transform: translate(-50%, -50%);
       pointer-events: none;
       z-index: 2;
@@ -140,17 +144,16 @@
       left: 50%;
       top: 50%;
       transform:
-        translate(-50%, calc(-50% - var(--label-distance, 52px)))
-        scale(var(--label-counter-scale, 1));
+        translate(-50%, calc(-50% - var(--label-distance, 52px))) scale(var(--label-counter-scale, 1));
       transform-origin: center center;
       color: #fff;
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 800;
       line-height: 1;
       white-space: nowrap;
       opacity: var(--hotspot-label-opacity, 0);
       pointer-events: none;
-      text-shadow: 0 2px 8px rgba(0,0,0,0.65);
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.65);
       transition: opacity 0.16s ease;
       will-change: transform, opacity;
       z-index: 3;
@@ -158,21 +161,21 @@
 
     .hotspot:hover,
     .hotspot.is-over {
-      background: rgba(255,255,255,0.42);
-      border-color: rgba(255,255,255,0.94);
-      box-shadow: 0 0 18px rgba(255,255,255,0.28), 0 10px 28px rgba(0,0,0,0.24);
+      background: rgba(255, 255, 255, 0.42);
+      border-color: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 0 18px rgba(255, 255, 255, 0.28), 0 10px 28px rgba(0, 0, 0, 0.24);
     }
 
     .hotspot:hover::after,
     .hotspot.is-over::after {
       background: #fff;
-      box-shadow: 0 0 0 4px rgba(255,255,255,0.28), 0 0 18px rgba(255,255,255,0.38), 0 5px 16px rgba(0,0,0,0.34);
+      box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.28), 0 0 18px rgba(255, 255, 255, 0.38), 0 5px 16px rgba(0, 0, 0, 0.34);
     }
 
     #frameButtons {
       position: fixed;
       left: 50%;
-      bottom: 28px;
+      bottom: 24px;
       transform: translateX(-50%);
       z-index: 15;
       display: flex;
@@ -183,7 +186,7 @@
       width: max-content;
       max-width: min(1180px, calc(100vw - 40px));
       padding: 12px 22px;
-      border-radius: 18px;
+      border-radius: 999px;
       background: rgba(0, 0, 0, 0.20);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
@@ -207,7 +210,7 @@
       outline: none;
       border-radius: 0;
       background: transparent;
-      color: rgba(255,255,255,0.66);
+      color: rgba(255, 255, 255, 0.66);
       font-size: 12px;
       font-weight: 800;
       letter-spacing: 0.055em;
@@ -229,7 +232,7 @@
       width: 100%;
       height: 2px;
       border-radius: 999px;
-      background: rgba(255,255,255,0.98);
+      background: rgba(255, 255, 255, 0.98);
       opacity: 0;
       transform: translateX(-50%) scaleX(0);
       transform-origin: center center;
@@ -249,7 +252,7 @@
       color: #fff;
       opacity: 1;
       transform: translateY(-2px);
-      text-shadow: 0 0 12px rgba(255,255,255,0.45);
+      text-shadow: 0 0 12px rgba(255, 255, 255, 0.45);
     }
 
     .frameButton.active::after {
@@ -257,33 +260,40 @@
       transform: translateX(-50%) scaleX(1);
     }
 
-    #sequenceBackButton {
+
+
+    /*
+      Holds sequence frame 00 over the viewer while the matching panorama
+      frame is restored underneath, then gently fades away. This prevents
+      the brief black flash and softens compression differences.
+    */
+    #sequenceReturnOverlay {
       position: fixed;
-      left: 50%;
-      bottom: 28px;
-      transform: translateX(-50%);
-      z-index: 20;
-      display: none;
-      padding: 12px 24px;
-      border: 1px solid rgba(255,255,255,0.9);
-      border-radius: 999px;
-      background: rgba(0,0,0,0.24);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      color: #fff;
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      cursor: pointer;
-      box-shadow: none;
-      transition:
-        transform 0.22s ease,
-        background 0.22s ease;
+      left: 0;
+      top: var(--pano-strip-top, 0px);
+      width: var(--pano-frame-width, calc(100vh * 16 / 9));
+      height: var(--pano-frame-height, 100vh);
+      z-index: 13;
+      display: block;
+      background-position: center center;
+      background-size: 100% 100%;
+      background-repeat: no-repeat;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      will-change: opacity;
     }
 
-    #sequenceBackButton:hover {
-      transform: translateX(-50%) scale(1.05);
-      background: rgba(0,0,0,0.38);
+    #sequenceReturnOverlay.is-visible {
+      opacity: 1;
+      visibility: visible;
+      transition: none;
+    }
+
+    #sequenceReturnOverlay.is-fading {
+      opacity: 0;
+      visibility: visible;
+      transition: opacity 0.68s ease-in-out;
     }
 
     #infoBox {
@@ -293,12 +303,12 @@
       transform: translate(-50%, -50%);
       width: min(420px, 86vw);
       padding: 28px;
-      background: rgba(255,255,255,0.95);
+      background: rgba(255, 255, 255, 0.95);
       color: #111;
       border-radius: 18px;
       z-index: 20;
       display: none;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
       text-align: center;
     }
 
@@ -336,6 +346,14 @@
       border-radius: 28px;
       background: transparent;
       pointer-events: none;
+      transform: scale(0.16);
+      transform-origin: center center;
+      transition: transform 1.15s cubic-bezier(0.65, 0, 0.35, 1);
+      will-change: transform;
+    }
+
+    #sequenceLottieCard.is-chrome-visible {
+      transform: scale(1);
     }
 
     #sequenceLottieCard::before {
@@ -344,32 +362,220 @@
       inset: 0;
       z-index: -1;
       border-radius: inherit;
-      background: rgba(0,0,0,0.42);
+      background: rgba(0, 0, 0, 0.42);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
-      box-shadow: 0 18px 55px rgba(0,0,0,0.28);
+      box-shadow: 0 18px 55px rgba(0, 0, 0, 0.28);
       opacity: 0;
-      transition: opacity 0.58s ease-in-out;
+      transition: opacity 1.15s cubic-bezier(0.65, 0, 0.35, 1);
+      will-change: opacity;
     }
 
     #sequenceLottieCard.is-chrome-visible::before {
       opacity: 1;
     }
 
+    #sequenceVisualGroup {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      flex: 0 1 auto;
+    }
+
     #sequenceLottie {
+      position: relative;
       width: min(1040px, 88vw);
       height: min(600px, 68vh);
       pointer-events: none;
+      opacity: 0;
+      overflow: hidden;
+      transform: translateY(10px) scale(0.975);
+      transform-origin: center center;
+      transition:
+        opacity 0.34s ease-in-out,
+        transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: opacity, transform;
+    }
+
+    #sequenceLottieCard.is-content-visible #sequenceLottie {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .sequenceLottieLayer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 1;
+      visibility: visible;
+      pointer-events: none;
+      z-index: 1;
+      transition:
+        opacity 0.28s ease-in-out,
+        visibility 0.28s ease-in-out;
+      will-change: opacity;
+    }
+
+    .sequenceLottieLayer.is-incoming {
+      opacity: 0;
+      visibility: hidden;
+      z-index: 2;
+    }
+
+    .sequenceLottieLayer.is-fading-out {
+      opacity: 0;
+      visibility: visible;
+      z-index: 1;
+    }
+
+    .sequenceLottieLayer svg,
+    .sequenceLottieLayer canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /*
+      METAL CRAFT is the only product card with five visual options.
+      The outer dots stay at 30% white; the smaller center dot animates
+      between positions to show the currently selected option.
+    */
+    #metalCraftPagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 11px;
+      min-height: 12px;
+      /* Pull the dots closer to the bottom edge of the Lottie. */
+      margin-top: -18px;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition:
+        opacity 1.15s cubic-bezier(0.65, 0, 0.35, 1),
+        visibility 1.15s linear;
+    }
+
+    #sequenceLottieCard.is-metal-craft.is-chrome-visible #metalCraftPagination {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .metalCraftDot {
+      position: relative;
+      width: 10px;
+      height: 10px;
+      flex: 0 0 10px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.30);
+    }
+
+    .metalCraftDot::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      /* The active white dot grows to exactly cover the 30%-opacity dot. */
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 1);
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0);
+      transition:
+        opacity 0.75s ease-in-out,
+        transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .metalCraftDot.is-active::after {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    .metalCraftNavButton {
+      position: absolute;
+      top: calc(50% - 4px);
+      z-index: 5;
+      width: 56px;
+      height: 56px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 7px 20px rgba(0, 0, 0, 0.26);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(-50%);
+      transition:
+        opacity 1.15s cubic-bezier(0.65, 0, 0.35, 1),
+        visibility 1.15s linear,
+        background 0.22s ease;
+    }
+
+    #metalCraftPrevButton {
+      left: clamp(18px, 5.4vw, 76px);
+    }
+
+    #metalCraftNextButton {
+      right: clamp(18px, 5.4vw, 76px);
+    }
+
+    .metalCraftNavButton svg {
+      width: 29px;
+      height: 29px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.15;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    #sequenceLottieCard.is-metal-craft.is-chrome-visible .metalCraftNavButton:not(.is-hidden) {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateY(-50%);
+    }
+
+    #sequenceLottieCard.is-metal-craft.is-chrome-visible .metalCraftNavButton:not(.is-hidden):hover,
+    #sequenceLottieCard.is-metal-craft.is-chrome-visible .metalCraftNavButton:not(.is-hidden):focus-visible {
+      transform: translateY(-50%) scale(1.07);
+      background: rgba(0, 0, 0, 0.46);
+      outline: none;
+    }
+
+    .metalCraftNavButton.is-hidden {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+      transform: translateY(-50%) scale(0.72) !important;
+    }
+
+    .metalCraftNavButton.is-busy {
+      pointer-events: none !important;
+      opacity: 0.48 !important;
     }
 
     #sequenceLearnMore {
+      position: relative;
       margin-top: 12px;
       padding: 12px 24px;
-      border: 1px solid rgba(255,255,255,0.9);
+      border: 1px solid rgba(255, 255, 255, 0.10);
       border-radius: 999px;
-      background: rgba(0,0,0,0.24);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+      background: rgba(0, 0, 0, 0.24);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
       color: #fff;
       font-size: 12px;
       font-weight: 800;
@@ -377,22 +583,46 @@
       cursor: pointer;
       pointer-events: none;
       opacity: 0;
-      transform: translateY(9px);
+      overflow: hidden;
       transition:
-        opacity 0.52s ease-in-out,
-        transform 0.52s ease-in-out,
-        background 0.22s ease;
+        opacity 1.15s cubic-bezier(0.65, 0, 0.35, 1),
+        background 0.22s ease,
+        border-color 0.22s ease,
+        box-shadow 0.22s ease;
+    }
+
+    /* A small edge highlight only—no highlight or smudge across the fill. */
+    #sequenceLearnMore::before {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      border-radius: inherit;
+      border-top: 1px solid rgba(255, 255, 255, 0.30);
+      border-left: 1px solid rgba(255, 255, 255, 0.22);
+      clip-path: inset(0 58% 48% 0 round 999px);
+      opacity: 0.72;
+      pointer-events: none;
+    }
+
+    #sequenceLearnMore::after {
+      content: none;
     }
 
     #sequenceLottieCard.is-chrome-visible #sequenceLearnMore {
       opacity: 1;
-      transform: translateY(0);
       pointer-events: auto;
     }
 
     #sequenceLottieCard.is-chrome-visible #sequenceLearnMore:hover {
-      transform: translateY(0) scale(1.05);
-      background: rgba(0,0,0,0.38);
+      transform: scale(1.05);
+      background: rgba(0, 0, 0, 0.32);
+      border-color: rgba(255, 255, 255, 0.14);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.17);
+    }
+
+    /* Give the Metal Craft page indicators a clear visual break before CONTINUE. */
+    #sequenceLottieCard.is-metal-craft #sequenceLearnMore {
+      margin-top: 42px;
     }
 
 
@@ -408,7 +638,7 @@
       gap: 12px;
       padding: 18px 22px;
       border-radius: 18px;
-      background: rgba(0,0,0,0.30);
+      background: rgba(0, 0, 0, 0.30);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       color: #fff;
@@ -432,13 +662,15 @@
       width: 34px;
       height: 34px;
       border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.25);
+      border: 2px solid rgba(255, 255, 255, 0.25);
       border-top-color: #fff;
       animation: sequenceLoadingSpin 0.9s linear infinite;
     }
 
     @keyframes sequenceLoadingSpin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     #panToggleButton {
@@ -487,7 +719,7 @@
     }
 
     .hotspotConnectorLine {
-      stroke: rgba(255,255,255,0.95);
+      stroke: rgba(255, 255, 255, 0.95);
       stroke-width: 1.5;
       stroke-linecap: round;
       vector-effect: non-scaling-stroke;
@@ -499,17 +731,52 @@
       opacity: 0;
     }
 
+    /*
+      The center dot never changes size. A separate translucent halo expands
+      outward once after the connector reaches the hotspot, matching the
+      visual language of the hotspot pulse.
+    */
+    .hotspotConnectorPulse {
+      fill: rgba(255, 255, 255, 0.34);
+      opacity: 0;
+      filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.72));
+      transform-box: fill-box;
+      transform-origin: center center;
+      pointer-events: none;
+    }
+
+    .hotspotConnectorPulse.is-arrived-pulse {
+      animation: connectorHaloArrivalPulse 1.35s ease-out 1;
+    }
+
+    @keyframes connectorHaloArrivalPulse {
+      0% {
+        transform: scale(0.10);
+        opacity: 0.95;
+      }
+
+      72% {
+        transform: scale(2);
+        opacity: 0;
+      }
+
+      100% {
+        transform: scale(2);
+        opacity: 0;
+      }
+    }
+
     #hotspotFocusCircle {
       position: fixed;
       left: 50%;
       bottom: 104px;
       transform: translateX(-50%) scale(1);
       transform-origin: center center;
-      width: 156px;
-      height: 156px;
+      width: 160px;
+      height: 160px;
       border-radius: 50%;
-      border: 1px solid rgba(255,255,255,0.95);
-      background: rgba(0,0,0,0.20);
+      border: none;
+      background: rgba(0, 0, 0, 0.20);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       z-index: 15;
@@ -534,10 +801,11 @@
 
     #hotspotThumbnailStage {
       position: absolute;
-      left: 7px;
-      right: 7px;
-      bottom: 6px;
-      height: 190%;
+      left: 13px;
+      right: 13px;
+      bottom: 10px;
+      height: calc(190% - 15.6px);
+      z-index: 2;
       pointer-events: auto;
       cursor: pointer;
       overflow: hidden;
@@ -554,13 +822,13 @@
     .hotspotFocusThumbnail {
       position: absolute;
       left: 50%;
-      bottom: 0;
+      bottom: -10px;
       width: 100%;
       height: 100%;
       object-fit: contain;
       object-position: center bottom;
-      transform: translateX(-50%) rotateY(0deg);
-      transform-origin: center center;
+      transform: translateX(-50%) rotateY(0deg) scale(0.95);
+      transform-origin: center bottom;
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
@@ -574,14 +842,14 @@
     .hotspotFocusThumbnail.startup-thumbnail {
       opacity: 0;
       visibility: visible;
-      transform: translateX(-50%) rotateY(0deg) scale(0.78);
+      transform: translateX(-50%) rotateY(0deg) scale(0.74);
       transition: none;
     }
 
     .hotspotFocusThumbnail.startup-thumbnail.startup-thumbnail-show {
       opacity: 1;
       visibility: visible;
-      transform: translateX(-50%) rotateY(0deg) scale(1);
+      transform: translateX(-50%) rotateY(0deg) scale(0.95);
       transition:
         opacity 0.5s ease-out,
         transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
@@ -590,7 +858,7 @@
     .hotspotFocusThumbnail.is-visible {
       opacity: 1;
       visibility: visible;
-      transform: translateX(-50%) rotateY(0deg);
+      transform: translateX(-50%) rotateY(0deg) scale(0.95);
     }
 
     /*
@@ -600,7 +868,7 @@
     .hotspotFocusThumbnail.is-exiting {
       opacity: 1;
       visibility: visible;
-      transform: translateX(-50%) rotateY(-90deg);
+      transform: translateX(-50%) rotateY(-90deg) scale(0.95);
       transition-timing-function: cubic-bezier(0.42, 0, 1, 1);
     }
 
@@ -610,29 +878,63 @@
     .hotspotFocusThumbnail.is-entering {
       opacity: 1;
       visibility: visible;
-      transform: translateX(-50%) rotateY(90deg);
+      transform: translateX(-50%) rotateY(90deg) scale(0.95);
       transition: none;
     }
 
     .hotspotFocusThumbnail.is-entering.is-flipping-in {
-      transform: translateX(-50%) rotateY(0deg);
+      transform: translateX(-50%) rotateY(0deg) scale(0.95);
       transition-property: transform;
       transition-timing-function: cubic-bezier(0, 0, 0.58, 1);
     }
 
+    #hotspotFocusArcOverlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+      transform: rotate(-90deg);
+      z-index: 1;
+    }
+
+    #hotspotFocusArcBlur {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.26);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      vector-effect: non-scaling-stroke;
+      opacity: 0;
+      filter: blur(2.1px);
+    }
+
+    #hotspotFocusArcSegment {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.96);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      vector-effect: non-scaling-stroke;
+      opacity: 0;
+      filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.20));
+    }
+
     #hotspotFocusClose {
       position: absolute;
-      top: -30px;
-      right: -30px;
-      width: 30px;
-      height: 30px;
+      left: auto;
+      right: -13px;
+      bottom: -8px;
+      transform: none;
+      z-index: 4;
+      width: 34px;
+      height: 34px;
       padding: 0;
       border: none;
       border-radius: 50%;
-      background: rgba(255,255,255,0.50);
+      background: rgba(0, 0, 0, 0.28);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      color: #000;
+      color: #fff;
       font-size: 18px;
       font-weight: 700;
       line-height: 1;
@@ -641,23 +943,38 @@
       justify-content: center;
       cursor: pointer;
       pointer-events: auto;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.28);
+      box-shadow: 0 5px 16px rgba(0, 0, 0, 0.24);
       white-space: nowrap;
       transition:
-        transform 0.2s ease,
+        transform 0.22s ease,
         width 0.25s ease,
         height 0.25s ease,
         border-radius 0.25s ease,
         top 0.25s ease,
         right 0.25s ease,
+        bottom 0.25s ease,
         left 0.25s ease,
-        background 0.25s ease,
+        background 0.22s ease,
         color 0.25s ease,
         font-size 0.25s ease;
     }
 
-    #hotspotFocusClose:hover {
+    #hotspotFocusClose svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.15;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    #hotspotFocusClose:hover,
+    #hotspotFocusClose:focus-visible {
       transform: scale(1.06);
+      background: rgba(0, 0, 0, 0.44);
+      outline: none;
     }
 
     #hotspotFocusCircle.is-disabled {
@@ -685,7 +1002,7 @@
       height: 36px;
       border-radius: 999px;
       transform: translate(-50%, 0);
-      background: rgba(0,0,0,0.20);
+      background: rgba(0, 0, 0, 0.20);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       color: #fff;
@@ -699,11 +1016,11 @@
 
     @media (max-width: 600px) {
       #frameButtons {
-        bottom: 18px;
+        bottom: 15px;
         gap: 2px 14px;
         max-width: calc(100vw - 24px);
         padding: 10px 14px;
-        border-radius: 14px;
+        border-radius: 999px;
       }
 
       .frameButton {
@@ -713,11 +1030,6 @@
         font-size: 9px;
       }
 
-      #sequenceBackButton {
-        bottom: 18px;
-        padding: 11px 22px;
-        font-size: 13px;
-      }
 
       #sequenceLottieCard {
         padding: 16px 16px 20px;
@@ -745,8 +1057,8 @@
 
       #hotspotFocusCircle {
         bottom: 92px;
-        width: 124px;
-        height: 124px;
+        width: 128px;
+        height: 128px;
       }
 
     }
@@ -756,11 +1068,12 @@
       This catches phones and tablets in landscape as well as portrait,
       rather than relying only on viewport width.
     */
-    @media (hover: none) and (pointer: coarse), (max-width: 700px) {
+    @media (hover: none) and (pointer: coarse),
+    (max-width: 700px) {
       #frameButtons {
         left: max(12px, env(safe-area-inset-left));
         right: max(12px, env(safe-area-inset-right));
-        bottom: max(10px, env(safe-area-inset-bottom));
+        bottom: max(9px, env(safe-area-inset-bottom));
         width: auto;
         max-width: none;
         transform: none;
@@ -770,7 +1083,7 @@
         gap: 3px 10px;
         padding: 9px 12px;
         box-sizing: border-box;
-        border-radius: 14px;
+        border-radius: 999px;
       }
 
       #frameButtons.hidden {
@@ -794,26 +1107,19 @@
       }
 
       #hotspotFocusClose {
-        width: 26px;
-        height: 26px;
-        top: -22px;
-        right: -22px;
+        width: 30px;
+        height: 30px;
+        right: -11px;
+        bottom: -6px;
         font-size: 16px;
       }
 
-      #sequenceBackButton {
-        left: max(12px, env(safe-area-inset-left));
-        top: max(12px, env(safe-area-inset-top));
-        bottom: auto;
-        transform: none;
-        padding: 9px 17px;
-        font-size: 10px;
-        z-index: 24;
+      #hotspotFocusClose svg {
+        width: 17px;
+        height: 17px;
       }
 
-      #sequenceBackButton:hover {
-        transform: scale(1.04);
-      }
+
 
       #sequenceLottiePanel {
         inset: 0;
@@ -823,10 +1129,7 @@
         height: 100%;
         transform: none;
         padding:
-          max(54px, calc(env(safe-area-inset-top) + 46px))
-          max(12px, env(safe-area-inset-right))
-          max(12px, env(safe-area-inset-bottom))
-          max(12px, env(safe-area-inset-left));
+          max(54px, calc(env(safe-area-inset-top) + 46px)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
         box-sizing: border-box;
       }
 
@@ -839,9 +1142,9 @@
 
     /* Phone/tablet portrait */
     @media (hover: none) and (pointer: coarse) and (orientation: portrait),
-           (max-width: 700px) and (orientation: portrait) {
+    (max-width: 700px) and (orientation: portrait) {
       #frameButtons {
-        bottom: max(12px, env(safe-area-inset-bottom));
+        bottom: max(10px, env(safe-area-inset-bottom));
         gap: 4px 7px;
         padding: 10px 10px;
       }
@@ -855,8 +1158,8 @@
         thumbnail circle.
       */
       #hotspotFocusCircle {
-        width: clamp(108px, 30vw, 132px);
-        height: clamp(108px, 30vw, 132px);
+        width: calc(clamp(108px, 30vw, 132px) + 4px);
+        height: calc(clamp(108px, 30vw, 132px) + 4px);
         bottom: calc(max(12px, env(safe-area-inset-bottom)) + 116px);
       }
 
@@ -892,14 +1195,14 @@
 
     /* Phone/tablet landscape */
     @media (hover: none) and (pointer: coarse) and (orientation: landscape),
-           (max-height: 600px) and (orientation: landscape) {
+    (max-height: 600px) and (orientation: landscape) {
       #frameButtons {
         left: max(14px, env(safe-area-inset-left));
         right: max(14px, env(safe-area-inset-right));
-        bottom: max(8px, env(safe-area-inset-bottom));
+        bottom: max(7px, env(safe-area-inset-bottom));
         gap: 2px 12px;
         padding: 7px 12px;
-        border-radius: 13px;
+        border-radius: 999px;
       }
 
       .frameButton {
@@ -909,23 +1212,28 @@
       }
 
       #hotspotFocusCircle {
-        width: clamp(74px, 16vh, 96px);
-        height: clamp(74px, 16vh, 96px);
+        width: calc(clamp(74px, 16vh, 96px) + 4px);
+        height: calc(clamp(74px, 16vh, 96px) + 4px);
         bottom: calc(max(8px, env(safe-area-inset-bottom)) + 66px);
       }
 
       #hotspotThumbnailStage {
-        left: 5px;
-        right: 5px;
-        bottom: 4px;
+        left: 11px;
+        right: 11px;
+        bottom: 8px;
       }
 
       #hotspotFocusClose {
-        width: 24px;
-        height: 24px;
-        top: -18px;
-        right: -18px;
+        width: 28px;
+        height: 28px;
+        right: -10px;
+        bottom: -5px;
         font-size: 15px;
+      }
+
+      #hotspotFocusClose svg {
+        width: 16px;
+        height: 16px;
       }
 
       #panToggleButton {
@@ -936,10 +1244,7 @@
 
       #sequenceLottiePanel {
         padding:
-          max(46px, calc(env(safe-area-inset-top) + 40px))
-          max(12px, env(safe-area-inset-right))
-          max(10px, env(safe-area-inset-bottom))
-          max(12px, env(safe-area-inset-left));
+          max(46px, calc(env(safe-area-inset-top) + 40px)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
       }
 
       #sequenceLottieCard {
@@ -962,12 +1267,6 @@
         font-size: 9px;
       }
 
-      #sequenceBackButton {
-        left: max(10px, env(safe-area-inset-left));
-        top: max(9px, env(safe-area-inset-top));
-        padding: 8px 15px;
-        font-size: 9px;
-      }
     }
 
 
@@ -978,7 +1277,7 @@
 
     /* PORTRAIT: return to a vertical card with LEARN MORE below the Lottie. */
     @media (hover: none) and (pointer: coarse) and (orientation: portrait),
-           (max-width: 700px) and (orientation: portrait) {
+    (max-width: 700px) and (orientation: portrait) {
       #sequenceLottiePanel {
         inset: 0;
         left: 0;
@@ -987,10 +1286,7 @@
         height: 100%;
         transform: none;
         padding:
-          max(12px, env(safe-area-inset-top))
-          max(12px, env(safe-area-inset-right))
-          max(76px, calc(env(safe-area-inset-bottom) + 66px))
-          max(12px, env(safe-area-inset-left));
+          max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(76px, calc(env(safe-area-inset-bottom) + 66px)) max(12px, env(safe-area-inset-left));
         box-sizing: border-box;
       }
 
@@ -1025,19 +1321,7 @@
         text-align: center;
       }
 
-      #sequenceBackButton {
-        left: 50%;
-        right: auto;
-        top: auto;
-        bottom: max(18px, env(safe-area-inset-bottom));
-        transform: translateX(-50%);
-        padding: 10px 20px;
-        font-size: 10px;
-      }
 
-      #sequenceBackButton:hover {
-        transform: translateX(-50%) scale(1.04);
-      }
     }
 
     /*
@@ -1046,7 +1330,7 @@
       instead of stretching across most of the screen.
     */
     @media (hover: none) and (pointer: coarse) and (orientation: landscape),
-           (max-height: 600px) and (orientation: landscape) {
+    (max-height: 600px) and (orientation: landscape) {
       #sequenceLottiePanel {
         inset: 0;
         left: 0;
@@ -1055,10 +1339,7 @@
         height: 100%;
         transform: none;
         padding:
-          max(42px, calc(env(safe-area-inset-top) + 36px))
-          max(14px, env(safe-area-inset-right))
-          max(10px, env(safe-area-inset-bottom))
-          max(14px, env(safe-area-inset-left));
+          max(42px, calc(env(safe-area-inset-top) + 36px)) max(14px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
         box-sizing: border-box;
       }
 
@@ -1092,19 +1373,7 @@
         white-space: nowrap;
       }
 
-      #sequenceBackButton {
-        left: max(10px, env(safe-area-inset-left));
-        right: auto;
-        top: max(9px, env(safe-area-inset-top));
-        bottom: auto;
-        transform: none;
-        padding: 8px 15px;
-        font-size: 9px;
-      }
 
-      #sequenceBackButton:hover {
-        transform: scale(1.04);
-      }
     }
 
     /*
@@ -1135,6 +1404,175 @@
       }
     }
 
+
+    /*
+      The old standalone BACK button has been replaced by a compact arrow
+      anchored inside the sequence/Lottie card itself.
+    */
+    #sequenceBackButton {      position: absolute;
+      left: 14px;
+      top: 14px;
+      z-index: 4;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #fff;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      pointer-events: auto;
+      box-shadow: 0 5px 16px rgba(0, 0, 0, 0.24);
+      opacity: 0;
+      visibility: hidden;
+      transition:
+        opacity 1.15s cubic-bezier(0.65, 0, 0.35, 1),
+        visibility 1.15s linear,
+        background 0.22s ease;
+    }
+
+    #sequenceLottieCard.is-chrome-visible #sequenceBackButton {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    #sequenceLottieCard.is-returning #sequenceBackButton {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    #sequenceBackButton svg {
+      width: 21px;
+      height: 21px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.15;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    #sequenceLottieCard.is-chrome-visible #sequenceBackButton:hover,
+    #sequenceLottieCard.is-chrome-visible #sequenceBackButton:focus-visible {
+      transform: scale(1.06);
+      background: rgba(0, 0, 0, 0.44);
+      outline: none;
+    }
+
+    @media (hover: none) and (pointer: coarse),
+    (max-width: 700px) {
+      #sequenceBackButton {
+        left: 10px;
+        top: 10px;
+        width: 34px;
+        height: 34px;
+      }
+
+      #sequenceBackButton svg {
+        width: 19px;
+        height: 19px;
+      }
+    }
+
+    @media (hover: none) and (pointer: coarse) and (orientation: landscape),
+    (max-height: 600px) and (orientation: landscape) {
+      #sequenceBackButton {
+        left: 7px;
+        top: 7px;
+        width: 30px;
+        height: 30px;
+      }
+
+      #sequenceBackButton svg {
+        width: 17px;
+        height: 17px;
+      }
+    }
+
+    @media (hover: none) and (pointer: coarse),
+    (max-width: 700px) {
+      .metalCraftNavButton {
+        width: 40px;
+        height: 40px;
+      }
+
+      .metalCraftNavButton svg {
+        width: 22px;
+        height: 22px;
+      }
+
+      #metalCraftPrevButton {
+        left: 8px;
+      }
+
+      #metalCraftNextButton {
+        right: 8px;
+      }
+
+      #metalCraftPagination {
+        gap: 9px;
+        margin-top: -12px;
+      }
+
+      #sequenceLottieCard.is-metal-craft #sequenceLearnMore {
+        margin-top: 30px;
+      }
+
+      .metalCraftDot {
+        width: 9px;
+        height: 9px;
+        flex-basis: 9px;
+      }
+    }
+
+    @media (hover: none) and (pointer: coarse) and (orientation: landscape),
+    (max-height: 600px) and (orientation: landscape) {
+      .metalCraftNavButton {
+        top: calc(50% - 1px);
+        width: 34px;
+        height: 34px;
+      }
+
+      .metalCraftNavButton svg {
+        width: 19px;
+        height: 19px;
+      }
+
+      #metalCraftPrevButton {
+        left: 5px;
+      }
+
+      #metalCraftNextButton {
+        right: 5px;
+      }
+
+      #metalCraftPagination {
+        gap: 7px;
+        min-height: 9px;
+        margin-top: -8px;
+      }
+
+      #sequenceLottieCard.is-metal-craft #sequenceLearnMore {
+        margin-top: 20px;
+      }
+
+      .metalCraftDot {
+        width: 8px;
+        height: 8px;
+        flex-basis: 8px;
+      }
+
+      .metalCraftDot::after {
+        width: 100%;
+        height: 100%;
+      }
+    }
   </style>
 </head>
 
@@ -1143,51 +1581,63 @@
     <div id="scenePlane">
       <div id="panoramaStrip"></div>
 
-  <!-- Hotspots -->
-  <button class="hotspot" id="hotspot1" aria-label="CUSTOM CUT">
-    <span class="hotspotLabel">CUSTOM CUT</span>
-  </button>
-  <button class="hotspot" id="hotspot2" aria-label="RANDOM PLANK">
-    <span class="hotspotLabel">RANDOM PLANK</span>
-  </button>
-  <button class="hotspot" id="hotspot3" aria-label="METAL CRAFT">
-    <span class="hotspotLabel">METAL CRAFT</span>
-  </button>
-  <button class="hotspot" id="hotspot4" aria-label="BOARD + BATTEN">
-    <span class="hotspotLabel">BOARD + BATTEN</span>
-  </button>
-  <button class="hotspot" id="hotspot5" aria-label="SOFFIT">
-    <span class="hotspotLabel">SOFFIT</span>
-  </button>
-  <button class="hotspot" id="hotspot6" aria-label="BOARD + BATTEN">
-    <span class="hotspotLabel">BOARD + BATTEN</span>
-  </button>
-  <button class="hotspot" id="hotspot7" aria-label="LUX LAP">
-    <span class="hotspotLabel">LUX LAP</span>
-  </button>
-  <button class="hotspot" id="hotspot8" aria-label="CHANNEL SIDING">
-    <span class="hotspotLabel">CHANNEL SIDING</span>
-  </button>
-  <button class="hotspot" id="hotspot9" aria-label="NEO LUMBER">
-    <span class="hotspotLabel">NEO LUMBER</span>
-  </button>
+      <!-- Hotspots -->
+      <button class="hotspot" id="hotspot1" aria-label="CUSTOM CUT">
+        <span class="hotspotLabel">CUSTOM CUT</span>
+      </button>
+      <button class="hotspot" id="hotspot2" aria-label="RANDOM PLANK">
+        <span class="hotspotLabel">RANDOM PLANK</span>
+      </button>
+      <button class="hotspot" id="hotspot3" aria-label="METAL CRAFT">
+        <span class="hotspotLabel">METAL CRAFT</span>
+      </button>
+      <button class="hotspot" id="hotspot4" aria-label="BOARD + BATTEN">
+        <span class="hotspotLabel">BOARD + BATTEN</span>
+      </button>
+      <button class="hotspot" id="hotspot5" aria-label="SOFFIT">
+        <span class="hotspotLabel">SOFFIT</span>
+      </button>
+      <button class="hotspot" id="hotspot6" aria-label="BOARD + BATTEN">
+        <span class="hotspotLabel">BOARD + BATTEN</span>
+      </button>
+      <button class="hotspot" id="hotspot7" aria-label="LUX LAP">
+        <span class="hotspotLabel">LUX LAP</span>
+      </button>
+      <button class="hotspot" id="hotspot8" aria-label="CHANNEL SIDING">
+        <span class="hotspotLabel">CHANNEL SIDING</span>
+      </button>
+      <button class="hotspot" id="hotspot9" aria-label="NEO LUMBER">
+        <span class="hotspotLabel">NEO LUMBER</span>
+      </button>
     </div>
   </div>
 
+  <div id="sequenceReturnOverlay" aria-hidden="true"></div>
+
   <svg id="hotspotConnectorOverlay" aria-hidden="true">
     <line id="hotspotConnectorLineA" class="hotspotConnectorLine" x1="0" y1="0" x2="0" y2="0"></line>
+    <circle id="hotspotConnectorPulseA" class="hotspotConnectorPulse" cx="0" cy="0" r="18.9"></circle>
     <circle id="hotspotConnectorDotA" class="hotspotConnectorDot" cx="0" cy="0" r="3.5"></circle>
 
     <line id="hotspotConnectorLineB" class="hotspotConnectorLine" x1="0" y1="0" x2="0" y2="0"></line>
+    <circle id="hotspotConnectorPulseB" class="hotspotConnectorPulse" cx="0" cy="0" r="18.9"></circle>
     <circle id="hotspotConnectorDotB" class="hotspotConnectorDot" cx="0" cy="0" r="3.5"></circle>
   </svg>
 
   <div id="hotspotFocusCircle" class="startup-hidden">
+    <svg id="hotspotFocusArcOverlay" viewBox="0 0 100 100" aria-hidden="true">
+      <circle id="hotspotFocusArcBlur" cx="50" cy="50" r="48.4"></circle>
+      <circle id="hotspotFocusArcSegment" cx="50" cy="50" r="48.4"></circle>
+    </svg>
     <div id="hotspotThumbnailStage" aria-hidden="true">
       <img id="hotspotFocusThumbnailA" class="hotspotFocusThumbnail" alt="" draggable="false" />
       <img id="hotspotFocusThumbnailB" class="hotspotFocusThumbnail" alt="" draggable="false" />
     </div>
-    <button id="hotspotFocusClose" type="button" aria-label="Hide thumbnails">×</button>
+    <button id="hotspotFocusClose" type="button" aria-label="Hide thumbnails" title="Hide thumbnails">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 10l5 5 5-5"></path>
+      </svg>
+    </button>
   </div>
 
   <button id="panToggleButton" type="button" aria-label="Pause automatic panning" title="Pause automatic panning">
@@ -1199,8 +1649,39 @@
 
   <div id="sequenceLottiePanel" aria-hidden="true">
     <div id="sequenceLottieCard">
-      <div id="sequenceLottie"></div>
-      <button id="sequenceLearnMore" type="button">LEARN MORE</button>
+      <button id="sequenceBackButton" type="button" aria-label="Back to panorama" title="Back to panorama">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15.5 5.5L9 12l6.5 6.5"></path>
+        </svg>
+      </button>
+
+      <div id="sequenceVisualGroup">
+        <button id="metalCraftPrevButton" class="metalCraftNavButton is-hidden" type="button"
+          aria-label="Previous Metal Craft option" title="Previous option">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15.5 5.5L9 12l6.5 6.5"></path>
+          </svg>
+        </button>
+
+        <div id="sequenceLottie"></div>
+
+        <button id="metalCraftNextButton" class="metalCraftNavButton" type="button" aria-label="Next Metal Craft option"
+          title="Next option">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8.5 5.5L15 12l-6.5 6.5"></path>
+          </svg>
+        </button>
+
+        <div id="metalCraftPagination" aria-label="Metal Craft option 1 of 5" aria-hidden="true">
+          <span class="metalCraftDot is-active" data-page="0"></span>
+          <span class="metalCraftDot" data-page="1"></span>
+          <span class="metalCraftDot" data-page="2"></span>
+          <span class="metalCraftDot" data-page="3"></span>
+          <span class="metalCraftDot" data-page="4"></span>
+        </div>
+      </div>
+
+      <button id="sequenceLearnMore" type="button">CONTINUE</button>
     </div>
   </div>
 
@@ -1209,7 +1690,6 @@
     <span>LOADING</span>
   </div>
 
-  <button id="sequenceBackButton">BACK</button>
 
   <div id="frameButtons" aria-label="Hotspot navigation"></div>
 
@@ -1227,21 +1707,30 @@
     const frameButtonsWrapper = document.getElementById("frameButtons");
     let frameButtons = [];
     const sequenceBackButton = document.getElementById("sequenceBackButton");
+    const sequenceReturnOverlay = document.getElementById("sequenceReturnOverlay");
     const sequenceLottiePanel = document.getElementById("sequenceLottiePanel");
     const sequenceLottieContainer = document.getElementById("sequenceLottie");
     const sequenceLottieCard = document.getElementById("sequenceLottieCard");
     const sequenceLearnMore = document.getElementById("sequenceLearnMore");
+    const metalCraftPrevButton = document.getElementById("metalCraftPrevButton");
+    const metalCraftNextButton = document.getElementById("metalCraftNextButton");
+    const metalCraftPagination = document.getElementById("metalCraftPagination");
+    const metalCraftDots = Array.from(document.querySelectorAll(".metalCraftDot"));
     const sequenceLoadingOverlay = document.getElementById("sequenceLoadingOverlay");
     const infoBox = document.getElementById("infoBox");
     const panToggleButton = document.getElementById("panToggleButton");
     const hotspotConnectorLineA = document.getElementById("hotspotConnectorLineA");
+    const hotspotConnectorPulseA = document.getElementById("hotspotConnectorPulseA");
     const hotspotConnectorDotA = document.getElementById("hotspotConnectorDotA");
     const hotspotConnectorLineB = document.getElementById("hotspotConnectorLineB");
+    const hotspotConnectorPulseB = document.getElementById("hotspotConnectorPulseB");
     const hotspotConnectorDotB = document.getElementById("hotspotConnectorDotB");
     const hotspotFocusCircle = document.getElementById("hotspotFocusCircle");
     const hotspotFocusThumbnailA = document.getElementById("hotspotFocusThumbnailA");
     const hotspotFocusThumbnailB = document.getElementById("hotspotFocusThumbnailB");
     const hotspotFocusClose = document.getElementById("hotspotFocusClose");
+    const hotspotFocusArcBlur = document.getElementById("hotspotFocusArcBlur");
+    const hotspotFocusArcSegment = document.getElementById("hotspotFocusArcSegment");
 
     let hotspotConnectorEnabled = true;
     let thumbnailsWereOpenBeforeSequence = false;
@@ -1275,24 +1764,24 @@
       frame, hotspotText, folder, prefix, count
     */
     /*
-      Each unique hotspot has a 30-frame JPG sequence.
+      Each unique hotspot has a 40-frame JPG sequence.
 
       Folder: hotspot title
-      Files:  hotspot title + 00 through 29
+      Files:  hotspot title + 00 through 39
 
       Examples:
       CUSTOM CUT/CUSTOM CUT00.jpg
-      CUSTOM CUT/CUSTOM CUT29.jpg
+      CUSTOM CUT/CUSTOM CUT39.jpg
     */
     const sequenceConfigs = [
-      { key: "customCut",     frame: 0, hotspotText: "CUSTOM CUT",      folder: "CUSTOM CUT",      prefix: "CUSTOM CUT",      count: 30, pad: 2, extension: "jpg", fps: 24 },
-      { key: "randomPlank",   frame: 0, hotspotText: "RANDOM PLANK",    folder: "RANDOM PLANK",    prefix: "RANDOM PLANK",    count: 30, pad: 2, extension: "jpg", fps: 24 },
-      { key: "metalCraft",    frame: 0, hotspotText: "METAL CRAFT",     folder: "METAL CRAFT",     prefix: "METAL CRAFT",     count: 30, pad: 2, extension: "jpg", fps: 24 },
-      { key: "boardBatten",   frame: 1, hotspotText: "BOARD + BATTEN",  folder: "BOARD + BATTEN",  prefix: "BOARD + BATTEN",  count: 30, pad: 2, extension: "jpg", fps: 24 },
-      { key: "soffit",        frame: 1, hotspotText: "SOFFIT",          folder: "SOFFIT",          prefix: "SOFFIT",          count: 30, pad: 2, extension: "jpg", fps: 24 },
-      { key: "luxLap",        frame: 1, hotspotText: "LUX LAP",         folder: "LUX LAP",         prefix: "LUX LAP",         count: 30, pad: 2, extension: "jpg", fps: 24 },
-      { key: "channelSiding", frame: 2, hotspotText: "CHANNEL SIDING",  folder: "CHANNEL SIDING",  prefix: "CHANNEL SIDING",  count: 30, pad: 2, extension: "jpg", fps: 24 },
-      { key: "neoLumber",     frame: 2, hotspotText: "NEO LUMBER",      folder: "NEO LUMBER",      prefix: "NEO LUMBER",      count: 30, pad: 2, extension: "jpg", fps: 24 }
+      { key: "customCut", frame: 0, hotspotText: "CUSTOM CUT", folder: "CUSTOM CUT", prefix: "CUSTOM CUT", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/v-groove-steel-siding/" },
+      { key: "randomPlank", frame: 0, hotspotText: "RANDOM PLANK", folder: "RANDOM PLANK", prefix: "RANDOM PLANK", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/random-plank/" },
+      { key: "metalCraft", frame: 0, hotspotText: "METAL CRAFT", folder: "METAL CRAFT", prefix: "METAL CRAFT", count: 40, pad: 2, extension: "jpg", fps: 24, sourceOffsetX: 281, sourceCanvasWidth: 1920, learnMoreUrl: "https://luxarpro.com/metal-craft-series/" },
+      { key: "boardBatten", frame: 1, hotspotText: "BOARD + BATTEN", folder: "BOARD + BATTEN", prefix: "BOARD + BATTEN", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/board-and-batten/" },
+      { key: "soffit", frame: 1, hotspotText: "SOFFIT", folder: "SOFFIT", prefix: "SOFFIT", count: 48, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/soffit/" },
+      { key: "luxLap", frame: 1, hotspotText: "LUX LAP", folder: "LUX LAP", prefix: "LUX LAP", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/lux-lap-cladding-panel/" },
+      { key: "channelSiding", frame: 2, hotspotText: "CHANNEL SIDING", folder: "CHANNEL SIDING", prefix: "CHANNEL SIDING", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/channel-siding/" },
+      { key: "neoLumber", frame: 2, hotspotText: "NEO LUMBER", folder: "NEO LUMBER", prefix: "NEO LUMBER", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/neo-lumber/" }
     ];
 
     const sequenceByFrame = new Map();
@@ -1309,6 +1798,18 @@
       config.frames = Array.from({ length: config.count }, (_, i) => {
         return `${config.folder}/${config.prefix}${String(i).padStart(config.pad, "0")}.${config.extension}`;
       });
+
+      /*
+        Every hotspot now uses its own matching Lottie folder and JSON file.
+        Example:
+        lottie/LUX LAP/LUX LAP.json
+
+        lottieFolder/lottieName can still be set on an individual config later
+        if one animation ever needs a different path or filename.
+      */
+      config.lottieFolder = config.lottieFolder || config.hotspotText;
+      config.lottieName = config.lottieName || config.hotspotText;
+      config.lottiePath = `lottie/${encodeURIComponent(config.lottieFolder)}/${encodeURIComponent(config.lottieName)}.json`;
 
       config.imagesReady = false;
       config.imagesLoading = false;
@@ -1390,15 +1891,39 @@
     let sequenceDirection = 1;
     let sequenceRAF = null;
     let sequenceLastTime = 0;
+    let sequenceReturnTransitionToken = 0;
+    const panoramaFrameReadyPromises = new Map();
 
     let sequenceLottieAnimation = null;
+    let sequenceLottieLayer = null;
     let sequenceLottieReady = false;
     let sequenceLottieLastFrame = -1;
+    let sequenceLottiePlaybackDirection = 1;
     let sequenceLottieLoadPromise = null;
+    let sequenceMenuRevealed = false;
+    let sequenceChromeRevealStarted = false;
+    const sequenceChromeRevealProgress = 0.35;
+    const sequenceMenuRevealProgress = 0.35;
+    let sequenceLottieLoadKey = "";
+    let sequenceLottieActiveKey = "";
+    let sequenceLottieLoadToken = 0;
+    let sequenceLottiePendingResolve = null;
     let sequencePreparing = false;
     let sequencePreparationToken = 0;
     let sequenceLoadingTimer = null;
-    const sequenceLottiePath = "lottie/RANDOM%20PLANK/RANDOM%20PLANK.json";
+    let sequenceBackTransitioning = false;
+    let sequenceLottieIndependentReverse = false;
+
+    const metalCraftLottiePages = [
+      { key: "metalCraft", label: "METAL CRAFT", path: "lottie/METAL%20CRAFT/METAL%20CRAFT.json" },
+      { key: "metalCraftVariable01", label: "VARIABLE 01", path: "lottie/VARIABLE%2001/VARIABLE%2001.json" },
+      { key: "metalCraftVariable02", label: "VARIABLE 02", path: "lottie/VARIABLE%2002/VARIABLE%2002.json" },
+      { key: "metalCraftVariable03", label: "VARIABLE 03", path: "lottie/VARIABLE%2003/VARIABLE%2003.json" },
+      { key: "metalCraftVariable04", label: "VARIABLE 04", path: "lottie/VARIABLE%2004/VARIABLE%2004.json" }
+    ];
+    let metalCraftPageIndex = 0;
+    let metalCraftTransitioning = false;
+    let metalCraftNavigationToken = 0;
 
     let autoRotateRestartTimeout = null;
 
@@ -1428,6 +1953,20 @@
       document.documentElement.style.setProperty("--pano-frame-width", `${frameWidth}px`);
       document.documentElement.style.setProperty("--pano-frame-height", `${frameHeight}px`);
       document.documentElement.style.setProperty("--pano-strip-top", `${panoStripTop}px`);
+    }
+
+    /*
+      Convert an offset measured in the original 1920px source image into
+      the matching number of CSS pixels at the panorama's current rendered
+      width. This keeps METAL CRAFT aligned at every viewport aspect ratio.
+    */
+    function getResponsiveSequenceOffsetX(config) {
+      const sourceOffsetX = Number(config?.sourceOffsetX || 0);
+      const sourceCanvasWidth = Number(config?.sourceCanvasWidth || 1920);
+
+      if (!sourceOffsetX || !sourceCanvasWidth) return 0;
+
+      return sourceOffsetX * (frameWidth / sourceCanvasWidth);
     }
 
     function easeInOutQuint(t) {
@@ -1535,6 +2074,23 @@
       }
     }
 
+    function isMainPanoramaPage() {
+      /*
+        Automatic panning and inertial movement are allowed only on the main
+        panorama page. Any sequence preparation, JPG animation, Lottie card,
+        or open hotspot menu locks the background completely still.
+      */
+      const lottiePanelOpen = sequenceLottiePanel.style.display === "flex";
+      return !sequencePreparing && !sequencePlaying && !activeSequence && !lottiePanelOpen;
+    }
+
+    function freezePanoramaBackground() {
+      autoRotate = false;
+      panVelocity = 0;
+      targetOffset = currentOffset;
+      clearAutoRotateRestart();
+    }
+
     function scheduleAutoRotateResume(delay = 1000) {
       clearAutoRotateRestart();
 
@@ -1545,7 +2101,7 @@
           !userPausedAutoRotate &&
           !isDragging &&
           !buttonTweenActive &&
-          !sequencePlaying
+          isMainPanoramaPage()
         ) {
           autoRotate = true;
         }
@@ -1557,7 +2113,7 @@
     }
 
     function showBackButton(show) {
-      sequenceBackButton.style.display = show ? "block" : "none";
+      sequenceBackButton.style.display = show ? "flex" : "none";
     }
 
     function setHotspotsVisible(visible) {
@@ -1591,7 +2147,7 @@
           config.imageElements.map((img) => {
             if (img.complete) {
               return img.decode
-                ? img.decode().catch(() => {})
+                ? img.decode().catch(() => { })
                 : Promise.resolve();
             }
 
@@ -1600,7 +2156,7 @@
                 if (img.decode) {
                   try {
                     await img.decode();
-                  } catch (error) {}
+                  } catch (error) { }
                 }
                 resolve();
               };
@@ -1662,7 +2218,7 @@
         frame: 0,
         x: 58.8,
         y: 60.05,
-        offsetY: -30,
+        offsetY: -60,
         title: "Hotspot 2",
         text: "RANDOM PLANK"
       },
@@ -1673,7 +2229,7 @@
         x: 93.33,
         y: 55.75,
         offsetX: -5,
-        offsetY: -15,
+        offsetY: -30,
         title: "Hotspot 3",
         text: "METAL CRAFT"
       },
@@ -1703,7 +2259,7 @@
         frame: 1,
         x: 67.36,
         y: 60.48,
-        offsetY: -30,
+        offsetY: -55,
         title: "Hotspot 6",
         text: "BOARD + BATTEN"
       },
@@ -1723,6 +2279,7 @@
         frame: 2,
         x: 15.76,
         y: 52.09,
+        offsetY: -20,
         title: "Hotspot 8",
         text: "CHANNEL SIDING"
       },
@@ -1780,7 +2337,7 @@
       button.addEventListener("click", (event) => {
         event.stopPropagation();
 
-        if (sequencePlaying || activeSequence) return;
+        if (sequencePlaying || activeSequence || sequencePreparing) return;
 
         frameButtons.forEach((item) => item.classList.remove("active"));
         button.classList.add("active");
@@ -1824,7 +2381,12 @@
       return closestOffset;
     }
 
-    function moveToFrame(frameIndex, onArrive = null, returnPlaneToNeutral = false) {
+    function moveToFrame(
+      frameIndex,
+      onArrive = null,
+      returnPlaneToNeutral = false,
+      destinationOffsetX = 0
+    ) {
       autoRotate = false;
       isDragging = false;
       panVelocity = 0;
@@ -1836,7 +2398,14 @@
 
       buttonTweenActive = true;
       buttonTweenStartOffset = currentOffset;
-      buttonTweenEndOffset = getClosestOffsetForFrame(frameIndex);
+      /*
+        Most sequences line up exactly with the start of their panorama frame.
+        METAL CRAFT uses a custom first sequence frame, so its panorama landing
+        position can be shifted independently before the sequence begins.
+        A positive value moves the panorama camera farther to the right.
+      */
+      buttonTweenEndOffset =
+        getClosestOffsetForFrame(frameIndex) + Number(destinationOffsetX || 0);
       buttonTweenStartTime = performance.now();
       buttonArrivalCallback = onArrive;
 
@@ -1934,10 +2503,10 @@
         const distanceToPointer = Math.hypot(bestScreenX - pointerX, screenY - pointerY);
         const pointerOverStrength =
           visible &&
-          pointerInsideViewer &&
-          !isDragging &&
-          !sequencePlaying &&
-          !activeSequence
+            pointerInsideViewer &&
+            !isDragging &&
+            !sequencePlaying &&
+            !activeSequence
             ? easeInOutSine(1 - Math.min(distanceToPointer / hotspotOverstateRadius, 1))
             : 0;
 
@@ -2005,7 +2574,7 @@
 
           if (image.complete) {
             return image.decode
-              ? image.decode().catch(() => {})
+              ? image.decode().catch(() => { })
               : Promise.resolve();
           }
 
@@ -2014,7 +2583,7 @@
               if (image.decode) {
                 try {
                   await image.decode();
-                } catch (error) {}
+                } catch (error) { }
               }
               resolve();
             };
@@ -2058,6 +2627,7 @@
       activeThumbnailElement = hotspotFocusThumbnailA;
       inactiveThumbnailElement = hotspotFocusThumbnailB;
       currentThumbnailKey = thumbnailName;
+      animateHotspotFocusArc();
 
       element.alt = thumbnailName;
       element.classList.add("startup-thumbnail");
@@ -2068,7 +2638,7 @@
           if (element.decode) {
             try {
               await element.decode();
-            } catch (error) {}
+            } catch (error) { }
           }
           resolve();
         };
@@ -2150,7 +2720,7 @@
 
       setPanToggleVisible(true);
 
-      if (!userPausedAutoRotate && !sequencePlaying && !sequencePreparing) {
+      if (!userPausedAutoRotate && isMainPanoramaPage()) {
         autoRotate = true;
       }
     }
@@ -2173,6 +2743,93 @@
       element.style.removeProperty("transition-duration");
       element.onload = null;
       element.onerror = null;
+    }
+
+    const hotspotFocusArcRadius = 48.4;
+    const hotspotFocusArcCircumference = 2 * Math.PI * hotspotFocusArcRadius;
+    const hotspotFocusArcLength = hotspotFocusArcCircumference * 0.205;
+    const hotspotFocusArcBlurLength = hotspotFocusArcCircumference * 0.42;
+    let hotspotFocusArcAnimationToken = 0;
+
+    function setHotspotFocusCloseToCollapse() {
+      hotspotFocusClose.innerHTML = `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M7 10l5 5 5-5"></path>
+        </svg>
+      `;
+      hotspotFocusClose.setAttribute("aria-label", "Hide thumbnails");
+      hotspotFocusClose.setAttribute("title", "Hide thumbnails");
+    }
+
+    function setHotspotFocusCloseToShow() {
+      hotspotFocusClose.textContent = "SHOW THUMBNAILS";
+      hotspotFocusClose.setAttribute("aria-label", "Show thumbnails");
+      hotspotFocusClose.setAttribute("title", "Show thumbnails");
+    }
+
+    function stopHotspotFocusArcAnimation() {
+      hotspotFocusArcAnimationToken += 1;
+      if (hotspotFocusArcBlur) hotspotFocusArcBlur.style.opacity = "0";
+      hotspotFocusArcSegment.style.opacity = "0";
+    }
+
+    function animateHotspotFocusArc(duration = 1160) {
+      if (!hotspotFocusArcSegment) return;
+
+      const animationToken = ++hotspotFocusArcAnimationToken;
+      const animationDuration = Math.max(1, duration);
+      const fadeInEnd = 0.1;
+      const fadeOutStart = 0.86;
+      const mainGapLength = Math.max(0, hotspotFocusArcCircumference - hotspotFocusArcLength);
+      const blurGapLength = Math.max(0, hotspotFocusArcCircumference - hotspotFocusArcBlurLength);
+
+      if (hotspotFocusArcBlur) {
+        hotspotFocusArcBlur.style.strokeDasharray = `${hotspotFocusArcBlurLength.toFixed(2)} ${blurGapLength.toFixed(2)}`;
+        hotspotFocusArcBlur.style.strokeDashoffset = "0";
+        hotspotFocusArcBlur.style.opacity = "0";
+      }
+
+      hotspotFocusArcSegment.style.strokeDasharray = `${hotspotFocusArcLength.toFixed(2)} ${mainGapLength.toFixed(2)}`;
+      hotspotFocusArcSegment.style.strokeDashoffset = "0";
+      hotspotFocusArcSegment.style.opacity = "0";
+
+      const startTime = performance.now();
+
+      function step(now) {
+        if (animationToken !== hotspotFocusArcAnimationToken) return;
+
+        const rawProgress = Math.max(0, Math.min((now - startTime) / animationDuration, 1));
+        /*
+          Bell-curve-like speed profile:
+          - slow near the top at the start and end
+          - fastest at the bottom halfway through the orbit
+        */
+        const orbitProgress = 0.5 - 0.5 * Math.cos(Math.PI * rawProgress);
+        const fadeProgress =
+          rawProgress < fadeInEnd
+            ? rawProgress / fadeInEnd
+            : rawProgress > fadeOutStart
+              ? Math.max(0, 1 - (rawProgress - fadeOutStart) / (1 - fadeOutStart))
+              : 1;
+        const dashOffset = `${(-hotspotFocusArcCircumference * orbitProgress).toFixed(2)}`;
+
+        if (hotspotFocusArcBlur) {
+          hotspotFocusArcBlur.style.strokeDashoffset = dashOffset;
+          hotspotFocusArcBlur.style.opacity = `${(fadeProgress * 0.68).toFixed(3)}`;
+        }
+
+        hotspotFocusArcSegment.style.strokeDashoffset = dashOffset;
+        hotspotFocusArcSegment.style.opacity = `${Math.min(1, fadeProgress * 0.98).toFixed(3)}`;
+
+        if (rawProgress < 1) {
+          requestAnimationFrame(step);
+        } else if (animationToken === hotspotFocusArcAnimationToken) {
+          if (hotspotFocusArcBlur) hotspotFocusArcBlur.style.opacity = "0";
+          hotspotFocusArcSegment.style.opacity = "0";
+        }
+      }
+
+      requestAnimationFrame(step);
     }
 
     function hideAllThumbnails() {
@@ -2218,10 +2875,21 @@
       nextElement.classList.add("is-entering");
       nextElement.src = `Thumbnails/${encodedFilename}`;
 
+      let revealStarted = false;
+
       const revealNext = () => {
+        if (revealStarted) return;
         if (swapToken !== thumbnailSwapToken || !hotspotConnectorEnabled) return;
 
+        revealStarted = true;
         const halfFlipDuration = getThumbnailHalfFlipDuration();
+
+        /*
+          Restart the orbiting outline for every real thumbnail swap. Its
+          duration follows both halves of the flip so the line animation and
+          thumbnail rotation read as one coordinated transition.
+        */
+        animateHotspotFocusArc(halfFlipDuration * 2);
 
         /*
           OUTGOING HALF:
@@ -2297,14 +2965,31 @@
         : 1 - Math.pow(-2 * t + 2, 3) / 2;
     }
 
-    function hideConnectorPair(line, dot) {
+    function hideConnectorPair(line, dot, pulse) {
       line.style.opacity = "0";
       dot.style.opacity = "0";
+
+      if (pulse) {
+        pulse.style.opacity = "0";
+        pulse.classList.remove("is-arrived-pulse");
+      }
     }
 
-    function drawConnectorPair(line, dot, hotspot, progress, circleCenterX, circleCenterY) {
+    function pulseConnectorDot(pulse) {
+      if (!pulse) return;
+
+      /*
+        Restart the one-time halo pulse while leaving the solid center dot at
+        its normal 3.5px radius throughout the animation.
+      */
+      pulse.classList.remove("is-arrived-pulse");
+      void pulse.getBoundingClientRect();
+      pulse.classList.add("is-arrived-pulse");
+    }
+
+    function drawConnectorPair(line, dot, pulse, hotspot, progress, circleCenterX, circleCenterY) {
       if (!hotspot || !hotspot._visible) {
-        hideConnectorPair(line, dot);
+        hideConnectorPair(line, dot, pulse);
         return;
       }
 
@@ -2319,14 +3004,23 @@
       line.setAttribute("y2", endY.toFixed(2));
 
       /*
-        Keep the small dot anchored to the hotspot itself while the line grows
-        outward from the large circle toward it.
+        Keep the dot attached to the moving tip of the connector line. It now
+        travels from the thumbnail circle to the hotspot instead of appearing
+        at the hotspot before the line arrives.
       */
-      dot.setAttribute("cx", hotspotX.toFixed(2));
-      dot.setAttribute("cy", hotspotY.toFixed(2));
+      dot.setAttribute("cx", endX.toFixed(2));
+      dot.setAttribute("cy", endY.toFixed(2));
+      pulse.setAttribute("cx", endX.toFixed(2));
+      pulse.setAttribute("cy", endY.toFixed(2));
 
       line.style.opacity = progress > 0.001 ? "1" : "0";
-      dot.style.opacity = "1";
+      dot.style.opacity = progress > 0.001 ? "1" : "0";
+
+      /* The halo is revealed only by the one-time arrival animation. */
+      if (progress < 1) {
+        pulse.style.opacity = "0";
+        pulse.classList.remove("is-arrived-pulse");
+      }
     }
 
     function updateHotspotConnector(now = performance.now()) {
@@ -2337,16 +3031,16 @@
         activeSequence ||
         sequencePreparing
       ) {
-        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
-        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB);
+        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
+        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB, hotspotConnectorPulseB);
         return;
       }
 
       const focusHotspot = getClosestVisibleHotspotToCenter();
 
       if (!focusHotspot) {
-        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
-        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB);
+        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
+        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB, hotspotConnectorPulseB);
         return;
       }
 
@@ -2379,26 +3073,27 @@
 
         /*
           Two independent lines animate at the same time:
-          - The outgoing line retracts from its hotspot back into the large circle.
-          - The incoming line extends from the large circle toward its hotspot.
-          Their hotspot dots never jump or travel between hotspots.
+          - The outgoing line and its tip dot retract into the large circle.
+          - The incoming line and its tip dot extend toward the new hotspot.
         */
         if (connectorOutgoingHotspot) {
           drawConnectorPair(
             hotspotConnectorLineA,
             hotspotConnectorDotA,
+            hotspotConnectorPulseA,
             connectorOutgoingHotspot,
             1 - easedProgress,
             circleCenterX,
             circleCenterY
           );
         } else {
-          hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
+          hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
         }
 
         drawConnectorPair(
           hotspotConnectorLineB,
           hotspotConnectorDotB,
+          hotspotConnectorPulseB,
           connectorActiveHotspot,
           easedProgress,
           circleCenterX,
@@ -2409,24 +3104,27 @@
           connectorTransitioning = false;
           connectorOutgoingHotspot = null;
 
-          hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
+          hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
           drawConnectorPair(
             hotspotConnectorLineB,
             hotspotConnectorDotB,
+            hotspotConnectorPulseB,
             connectorActiveHotspot,
             1,
             circleCenterX,
             circleCenterY
           );
+          pulseConnectorDot(hotspotConnectorPulseB);
         }
 
         return;
       }
 
-      hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
+      hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
       drawConnectorPair(
         hotspotConnectorLineB,
         hotspotConnectorDotB,
+        hotspotConnectorPulseB,
         connectorActiveHotspot,
         1,
         circleCenterX,
@@ -2480,71 +3178,559 @@
       }
     }
 
-    function initializeSequenceLottie() {
-      if (sequenceLottieReady && sequenceLottieAnimation) {
-        return Promise.resolve(true);
-      }
+    function destroySequenceLottieInstance(instance) {
+      if (!instance) return;
 
-      if (sequenceLottieLoadPromise) {
-        return sequenceLottieLoadPromise;
-      }
+      try {
+        instance.animation?.destroy();
+      } catch (error) { }
 
-      sequenceLottieLoadPromise = new Promise((resolve) => {
+      if (instance.layer?.parentNode) {
+        instance.layer.remove();
+      }
+    }
+
+    function loadSequenceLottieLayer({ key, path, label, hidden = true }) {
+      return new Promise((resolve) => {
         if (!window.lottie) {
           console.error("Lottie library is unavailable.");
-          resolve(false);
+          resolve(null);
           return;
         }
 
-        sequenceLottieAnimation = lottie.loadAnimation({
-          container: sequenceLottieContainer,
+        const layer = document.createElement("div");
+        layer.className = "sequenceLottieLayer";
+        layer.dataset.lottieKey = key;
+        if (hidden) layer.classList.add("is-incoming");
+        sequenceLottieContainer.appendChild(layer);
+
+        const animation = lottie.loadAnimation({
+          container: layer,
           renderer: "svg",
           loop: false,
           autoplay: false,
-          path: sequenceLottiePath,
+          path,
           rendererSettings: {
             preserveAspectRatio: "xMidYMid meet",
             progressiveLoad: true
           }
         });
 
-        sequenceLottieAnimation.addEventListener("DOMLoaded", () => {
-          sequenceLottieReady = true;
-          sequenceLottieLastFrame = -1;
-          sequenceLottieAnimation.goToAndStop(0, true);
-          resolve(true);
+        let settled = false;
+        const finish = (result) => {
+          if (settled) return;
+          settled = true;
+          resolve(result);
+        };
+
+        animation.addEventListener("DOMLoaded", () => {
+          animation.goToAndStop(0, true);
+          finish({ key, path, label, layer, animation });
         });
 
-        sequenceLottieAnimation.addEventListener("data_failed", () => {
-          console.error("The sequence Lottie could not be loaded.");
-          resolve(false);
+        animation.addEventListener("data_failed", () => {
+          console.error(`The Lottie for ${label || key} could not be loaded from ${path}.`);
+          destroySequenceLottieInstance({ layer, animation });
+          finish(null);
         });
+      });
+    }
+
+    function attachActiveLottieBoundaryHandler(instance) {
+      if (!instance?.animation || instance.animation.__luxBoundaryHandlerAttached) return;
+      instance.animation.__luxBoundaryHandlerAttached = true;
+
+      instance.animation.addEventListener("complete", () => {
+        if (instance.animation !== sequenceLottieAnimation) return;
+
+        const finalFrame = Math.max(
+          0,
+          Math.floor(instance.animation.totalFrames || 1) - 1
+        );
+        const holdFrame = sequenceLottiePlaybackDirection < 0 ? 0 : finalFrame;
+
+        sequenceLottieLastFrame = holdFrame;
+        instance.animation.goToAndStop(holdFrame, true);
+      });
+    }
+
+    function setActiveSequenceLottieInstance(instance) {
+      sequenceLottieAnimation = instance?.animation || null;
+      sequenceLottieLayer = instance?.layer || null;
+      sequenceLottieReady = Boolean(instance?.animation);
+      sequenceLottieActiveKey = instance?.key || "";
+      sequenceLottieLastFrame = sequenceLottieReady ? 0 : -1;
+      sequenceLottiePlaybackDirection = 1;
+
+      if (instance) {
+        attachActiveLottieBoundaryHandler(instance);
+      }
+    }
+
+    function initializeSequenceLottie(config) {
+      if (!config) return Promise.resolve(false);
+
+      const requestedKey = config.key || normalizeHotspotKey(config.hotspotText);
+      const requestedPath = config.lottiePath;
+
+      if (
+        sequenceLottieReady &&
+        sequenceLottieAnimation &&
+        sequenceLottieActiveKey === requestedKey
+      ) {
+        return Promise.resolve(true);
+      }
+
+      if (
+        sequenceLottieLoadPromise &&
+        sequenceLottieLoadKey === requestedKey
+      ) {
+        return sequenceLottieLoadPromise;
+      }
+
+      sequenceLottieLoadToken += 1;
+      const loadToken = sequenceLottieLoadToken;
+      sequenceLottieLoadKey = requestedKey;
+
+      sequenceLottieLoadPromise = (async () => {
+        const oldInstance = sequenceLottieAnimation || sequenceLottieLayer
+          ? {
+            key: sequenceLottieActiveKey,
+            animation: sequenceLottieAnimation,
+            layer: sequenceLottieLayer
+          }
+          : null;
+
+        const instance = await loadSequenceLottieLayer({
+          key: requestedKey,
+          path: requestedPath,
+          label: config.hotspotText,
+          hidden: true
+        });
+
+        if (loadToken !== sequenceLottieLoadToken) {
+          destroySequenceLottieInstance(instance);
+          return false;
+        }
+
+        if (!instance) {
+          return false;
+        }
+
+        instance.layer.classList.remove("is-incoming");
+        setActiveSequenceLottieInstance(instance);
+        destroySequenceLottieInstance(oldInstance);
+
+        Array.from(sequenceLottieContainer.children).forEach((child) => {
+          if (child !== instance.layer) child.remove();
+        });
+
+        return true;
+      })().finally(() => {
+        if (loadToken === sequenceLottieLoadToken) {
+          sequenceLottieLoadPromise = null;
+          sequenceLottieLoadKey = "";
+        }
       });
 
       return sequenceLottieLoadPromise;
+    }
+
+    function isMetalCraftSequence(config = activeSequence) {
+      return Boolean(config && config.key === "metalCraft");
+    }
+
+    function setMetalCraftMode(enabled) {
+      sequenceLottieCard.classList.toggle("is-metal-craft", enabled);
+      metalCraftPagination.setAttribute("aria-hidden", enabled ? "false" : "true");
+
+      if (!enabled) {
+        metalCraftTransitioning = false;
+        metalCraftNavigationToken += 1;
+      }
+    }
+
+    function updateMetalCraftNavigationUI() {
+      const lastIndex = metalCraftLottiePages.length - 1;
+      const busy = metalCraftTransitioning;
+
+      metalCraftDots.forEach((dot, index) => {
+        dot.classList.toggle("is-active", index === metalCraftPageIndex);
+      });
+
+      metalCraftPrevButton.classList.toggle("is-hidden", metalCraftPageIndex <= 0);
+      metalCraftNextButton.classList.toggle("is-hidden", metalCraftPageIndex >= lastIndex);
+      metalCraftPrevButton.classList.toggle("is-busy", busy);
+      metalCraftNextButton.classList.toggle("is-busy", busy);
+      metalCraftPrevButton.disabled = busy || metalCraftPageIndex <= 0;
+      metalCraftNextButton.disabled = busy || metalCraftPageIndex >= lastIndex;
+
+      const pageNumber = metalCraftPageIndex + 1;
+      metalCraftPagination.setAttribute(
+        "aria-label",
+        `Metal Craft option ${pageNumber} of ${metalCraftLottiePages.length}`
+      );
+    }
+
+    function resetMetalCraftNavigation() {
+      metalCraftPageIndex = 0;
+      metalCraftTransitioning = false;
+      updateMetalCraftNavigationUI();
+    }
+
+    function waitForLottieBoundary(animation, direction, restartFromBoundary = false) {
+      return new Promise((resolve) => {
+        if (!animation) {
+          resolve();
+          return;
+        }
+
+        const finalFrame = Math.max(
+          0,
+          Math.floor(animation.totalFrames || 1) - 1
+        );
+        const targetFrame = direction < 0 ? 0 : finalFrame;
+        let settled = false;
+
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          animation.removeEventListener("complete", finish);
+          animation.goToAndStop(targetFrame, true);
+          if (animation === sequenceLottieAnimation) {
+            sequenceLottieLastFrame = targetFrame;
+          }
+          resolve();
+        };
+
+        animation.addEventListener("complete", finish);
+        animation.pause();
+        animation.setDirection(direction < 0 ? -1 : 1);
+
+        if (animation === sequenceLottieAnimation) {
+          sequenceLottiePlaybackDirection = direction < 0 ? -1 : 1;
+        }
+
+        if (direction > 0) {
+          if (restartFromBoundary) {
+            animation.goToAndPlay(0, true);
+          } else {
+            animation.play();
+          }
+        } else {
+          const currentFrame = Number(animation.currentFrame || 0);
+          if (currentFrame <= 0.5) {
+            finish();
+            return;
+          }
+          animation.play();
+        }
+
+        const frameRate = Math.max(1, Number(animation.frameRate || 30));
+        const fallbackDuration = Math.max(
+          900,
+          ((finalFrame + 2) / frameRate) * 1000 + 700
+        );
+        setTimeout(finish, fallbackDuration);
+      });
+    }
+
+    async function crossfadeSequenceLottie(oldInstance, newInstance) {
+      if (!newInstance?.layer) return;
+
+      await waitForPaintFrames(1);
+      newInstance.layer.classList.remove("is-incoming");
+      oldInstance?.layer?.classList.add("is-fading-out");
+      await waitForDelay(320);
+      destroySequenceLottieInstance(oldInstance);
+    }
+
+    async function navigateMetalCraftOptions(direction) {
+      freezePanoramaBackground();
+
+      if (
+        !isMetalCraftSequence() ||
+        sequencePlaying ||
+        metalCraftTransitioning ||
+        !sequenceLottieAnimation ||
+        !sequenceLottieLayer
+      ) return;
+
+      const targetIndex = metalCraftPageIndex + direction;
+      if (targetIndex < 0 || targetIndex >= metalCraftLottiePages.length) return;
+
+      metalCraftTransitioning = true;
+      updateMetalCraftNavigationUI();
+      const navigationToken = ++metalCraftNavigationToken;
+      const targetPage = metalCraftLottiePages[targetIndex];
+      const oldInstance = {
+        key: sequenceLottieActiveKey,
+        animation: sequenceLottieAnimation,
+        layer: sequenceLottieLayer
+      };
+
+      /*
+        Load the destination into a hidden layer while the current visual stays
+        untouched. The current Lottie is never removed until this promise has
+        completed successfully.
+      */
+      const newInstance = await loadSequenceLottieLayer({
+        key: targetPage.key,
+        path: targetPage.path,
+        label: targetPage.label,
+        hidden: true
+      });
+
+      if (
+        navigationToken !== metalCraftNavigationToken ||
+        !isMetalCraftSequence() ||
+        !newInstance
+      ) {
+        destroySequenceLottieInstance(newInstance);
+        metalCraftTransitioning = false;
+        updateMetalCraftNavigationUI();
+        return;
+      }
+
+      if (direction > 0) {
+        oldInstance.animation.pause();
+        newInstance.animation.goToAndStop(0, true);
+        setActiveSequenceLottieInstance(newInstance);
+        metalCraftPageIndex = targetIndex;
+        updateMetalCraftNavigationUI();
+
+        const playPromise = waitForLottieBoundary(newInstance.animation, 1, true);
+        await crossfadeSequenceLottie(oldInstance, newInstance);
+        await playPromise;
+      } else {
+        const previousFinalFrame = Math.max(
+          0,
+          Math.floor(newInstance.animation.totalFrames || 1) - 1
+        );
+        newInstance.animation.goToAndStop(previousFinalFrame, true);
+
+        /* Reverse the current option all the way to frame zero before leaving it. */
+        await waitForLottieBoundary(oldInstance.animation, -1, false);
+        if (navigationToken !== metalCraftNavigationToken) {
+          destroySequenceLottieInstance(newInstance);
+          return;
+        }
+
+        await waitForDelay(120);
+        setActiveSequenceLottieInstance(newInstance);
+        sequenceLottieLastFrame = previousFinalFrame;
+        sequenceLottieAnimation.goToAndStop(previousFinalFrame, true);
+        metalCraftPageIndex = targetIndex;
+        updateMetalCraftNavigationUI();
+        await crossfadeSequenceLottie(oldInstance, newInstance);
+      }
+
+      if (navigationToken !== metalCraftNavigationToken) return;
+
+      sequenceLottiePlaybackDirection = 1;
+      metalCraftTransitioning = false;
+      updateMetalCraftNavigationUI();
+    }
+
+    async function preparePrimaryMetalCraftLottieForPanoramaReturn() {
+      /*
+        The VARIABLE Lotties only slide between profile pages; they do not use
+        the main METAL CRAFT zoom animation. When leaving the hotspot window,
+        always swap directly to the primary METAL CRAFT Lottie at its final
+        frame before beginning the normal reverse/zoom-out return.
+      */
+      if (
+        !isMetalCraftSequence() ||
+        sequenceLottieActiveKey === metalCraftLottiePages[0].key
+      ) {
+        return Boolean(sequenceLottieAnimation);
+      }
+
+      const returnToken = ++metalCraftNavigationToken;
+      metalCraftTransitioning = true;
+      updateMetalCraftNavigationUI();
+
+      const oldInstance = sequenceLottieAnimation || sequenceLottieLayer
+        ? {
+          key: sequenceLottieActiveKey,
+          animation: sequenceLottieAnimation,
+          layer: sequenceLottieLayer
+        }
+        : null;
+
+      const primaryPage = metalCraftLottiePages[0];
+      const primaryInstance = await loadSequenceLottieLayer({
+        key: primaryPage.key,
+        path: primaryPage.path,
+        label: primaryPage.label,
+        hidden: true
+      });
+
+      if (
+        returnToken !== metalCraftNavigationToken ||
+        !isMetalCraftSequence() ||
+        !primaryInstance
+      ) {
+        destroySequenceLottieInstance(primaryInstance);
+        metalCraftTransitioning = false;
+        updateMetalCraftNavigationUI();
+        return false;
+      }
+
+      const primaryFinalFrame = Math.max(
+        0,
+        Math.floor(primaryInstance.animation.totalFrames || 1) - 1
+      );
+
+      primaryInstance.animation.pause();
+      primaryInstance.animation.goToAndStop(primaryFinalFrame, true);
+
+      setActiveSequenceLottieInstance(primaryInstance);
+      sequenceLottieLastFrame = primaryFinalFrame;
+      sequenceLottiePlaybackDirection = -1;
+      metalCraftPageIndex = 0;
+      updateMetalCraftNavigationUI();
+
+      /*
+        Replace the VARIABLE page directly with the completed primary page.
+        Do not call navigateMetalCraftOptions(-1), because that would visibly
+        step backward through the profile pages before leaving the hotspot.
+      */
+      await crossfadeSequenceLottie(oldInstance, primaryInstance);
+
+      if (returnToken !== metalCraftNavigationToken) {
+        return false;
+      }
+
+      metalCraftTransitioning = false;
+      updateMetalCraftNavigationUI();
+      return true;
     }
 
     function setSequenceChromeVisible(visible) {
       sequenceLottieCard.classList.toggle("is-chrome-visible", visible);
     }
 
-    function showSequenceLottie(show, showChrome = true) {
+    function setSequenceContentVisible(visible) {
+      sequenceLottieCard.classList.toggle("is-content-visible", visible);
+    }
+
+    function showSequenceLottie(show, showChrome = true, showContent = true) {
       if (show) {
+        sequenceLottieCard.classList.remove("is-returning");
         sequenceLottiePanel.style.display = "flex";
         sequenceLottiePanel.setAttribute("aria-hidden", "false");
         setSequenceChromeVisible(false);
+        setSequenceContentVisible(false);
 
-        if (showChrome) {
+        if (showChrome || showContent) {
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-              setSequenceChromeVisible(true);
+              setSequenceChromeVisible(showChrome);
+              setSequenceContentVisible(showContent);
+
+              if (sequenceLottieAnimation?.resize) {
+                sequenceLottieAnimation.resize();
+              }
             });
           });
         }
       } else {
         setSequenceChromeVisible(false);
+        setSequenceContentVisible(false);
         sequenceLottiePanel.style.display = "none";
+        sequenceLottieCard.classList.remove("is-returning");
         sequenceLottiePanel.setAttribute("aria-hidden", "true");
+      }
+    }
+
+    function beginForwardSequenceChromeReveal() {
+      if (sequenceChromeRevealStarted || sequenceDirection !== 1) return;
+
+      sequenceChromeRevealStarted = true;
+      sequenceLottiePanel.style.display = "flex";
+      sequenceLottiePanel.setAttribute("aria-hidden", "false");
+
+      /*
+        Mount the complete card at its small grouped scale first, then animate
+        the entire window from one fixed center. No child element moves
+        independently.
+      */
+      setSequenceChromeVisible(false);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (
+            sequenceDirection === 1 &&
+            sequenceChromeRevealStarted
+          ) {
+            setSequenceChromeVisible(true);
+          }
+        });
+      });
+    }
+
+    function revealForwardSequenceMenu() {
+      if (sequenceMenuRevealed || sequenceDirection !== 1) return;
+
+      if (!sequenceChromeRevealStarted) {
+        beginForwardSequenceChromeReveal();
+      }
+
+      sequenceMenuRevealed = true;
+
+      /*
+        Bring the Lottie in on the same earlier trigger as the grouped window. Only the
+        surrounding blur and controls begin earlier.
+      */
+      sequenceLottiePanel.style.display = "flex";
+      sequenceLottiePanel.setAttribute("aria-hidden", "false");
+
+      if (sequenceLottieReady && sequenceLottieAnimation) {
+        sequenceLottieAnimation.pause();
+        sequenceLottieLastFrame = 0;
+        sequenceLottieAnimation.goToAndStop(0, true);
+      }
+
+      setSequenceContentVisible(true);
+
+      if (sequenceLottieAnimation?.resize) {
+        sequenceLottieAnimation.resize();
+      }
+
+      requestAnimationFrame(() => {
+        if (
+          sequenceDirection === 1 &&
+          sequenceMenuRevealed &&
+          sequenceLottieReady &&
+          sequenceLottieAnimation
+        ) {
+          sequenceLottiePlaybackDirection = 1;
+          sequenceLottieAnimation.setSpeed(1.3);
+          sequenceLottieAnimation.setDirection(1);
+          sequenceLottieAnimation.goToAndPlay(0, true);
+        }
+      });
+    }
+
+    function maybeRevealForwardSequenceMenu() {
+      if (sequenceDirection !== 1 || !activeSequence) return;
+
+      const finalIndex = Math.max(1, activeSequence.frames.length - 1);
+      const progress = sequenceCurrentIndex / finalIndex;
+
+      if (
+        !sequenceChromeRevealStarted &&
+        progress >= sequenceChromeRevealProgress
+      ) {
+        beginForwardSequenceChromeReveal();
+      }
+
+      if (
+        !sequenceMenuRevealed &&
+        progress >= sequenceMenuRevealProgress
+      ) {
+        revealForwardSequenceMenu();
       }
     }
 
@@ -2566,7 +3752,7 @@
 
       return Promise.all([
         preloadSequence(config),
-        initializeSequenceLottie()
+        initializeSequenceLottie(config)
       ]).finally(() => {
         if (sequenceLoadingTimer) {
           clearTimeout(sequenceLoadingTimer);
@@ -2577,6 +3763,15 @@
 
     function syncSequenceLottie(config, index) {
       if (!sequenceLottieReady || !sequenceLottieAnimation || !config) return;
+      if (sequenceLottieIndependentReverse) return;
+
+      /*
+        Forward playback is intentionally independent from the JPG sequence.
+        The Lottie remains paused on frame zero until the delayed menu appears,
+        then plays normally from beginning to end. Reverse playback retains
+        the original frame synchronization while returning to the panorama.
+      */
+      if (sequenceDirection === 1) return;
 
       const imageFrameCount = Math.max(1, config.frames.length - 1);
       const progress = Math.max(0, Math.min(index / imageFrameCount, 1));
@@ -2595,9 +3790,23 @@
     function applySequenceFrame(config, index) {
       const img = config.imageElements[index];
       const src = img ? img.src : config.frames[index];
+      const sequenceFrameOffsetX = getResponsiveSequenceOffsetX(config);
 
       panoFrameCopies[config.frame].forEach((frameEl) => {
         frameEl.style.backgroundImage = `url("${src}")`;
+
+        /*
+          METAL CRAFT lands between panorama frames. The 281px source-image
+          displacement is converted into responsive CSS pixels, then applied
+          equally to the sequence frame and panorama landing position.
+        */
+        if (sequenceFrameOffsetX) {
+          frameEl.style.transform = `translate3d(${sequenceFrameOffsetX}px, 0, 0)`;
+          frameEl.style.zIndex = "2";
+        } else {
+          frameEl.style.removeProperty("transform");
+          frameEl.style.removeProperty("z-index");
+        }
       });
 
       syncSequenceLottie(config, index);
@@ -2608,7 +3817,134 @@
 
       panoFrameCopies[config.frame].forEach((frameEl) => {
         frameEl.style.backgroundImage = `url("${src}")`;
+        frameEl.style.removeProperty("transform");
+        frameEl.style.removeProperty("z-index");
       });
+    }
+
+    function ensurePanoramaFrameReady(frameIndex) {
+      const src = frames[frameIndex];
+      if (!src) return Promise.resolve();
+      if (panoramaFrameReadyPromises.has(src)) {
+        return panoramaFrameReadyPromises.get(src);
+      }
+
+      const promise = new Promise((resolve) => {
+        const image = new Image();
+        const finish = async () => {
+          if (image.decode) {
+            try {
+              await image.decode();
+            } catch (error) { }
+          }
+          resolve();
+        };
+
+        image.onload = finish;
+        image.onerror = resolve;
+        image.src = src;
+
+        if (image.complete) {
+          finish();
+        }
+      });
+
+      panoramaFrameReadyPromises.set(src, promise);
+      return promise;
+    }
+
+    function waitForPaintFrames(count = 2) {
+      return new Promise((resolve) => {
+        const step = () => {
+          count -= 1;
+          if (count <= 0) {
+            resolve();
+          } else {
+            requestAnimationFrame(step);
+          }
+        };
+        requestAnimationFrame(step);
+      });
+    }
+
+    function showSequenceReturnOverlay(config, index = 0) {
+      const image = config?.imageElements?.[index];
+      const src = image?.src || config?.frames?.[index];
+      if (!src) return;
+
+      sequenceReturnOverlay.style.backgroundImage = `url("${src}")`;
+      sequenceReturnOverlay.classList.remove("is-fading");
+      sequenceReturnOverlay.classList.add("is-visible");
+      sequenceReturnOverlay.setAttribute("aria-hidden", "false");
+    }
+
+    function hideSequenceReturnOverlayImmediately() {
+      sequenceReturnTransitionToken += 1;
+      sequenceReturnOverlay.classList.remove("is-visible", "is-fading");
+      sequenceReturnOverlay.style.removeProperty("background-image");
+      sequenceReturnOverlay.setAttribute("aria-hidden", "true");
+    }
+
+    async function completeReverseSequenceTransition(finishedSequence) {
+      const transitionToken = ++sequenceReturnTransitionToken;
+
+      /* Keep sequence frame 00 visible before changing the panorama below it. */
+      showSequenceReturnOverlay(finishedSequence, 0);
+      await waitForPaintFrames(1);
+
+      /* Decode the panorama source first, then restore it beneath the cover. */
+      await ensurePanoramaFrameReady(finishedSequence.frame);
+      if (transitionToken !== sequenceReturnTransitionToken) return;
+
+      resetSequenceFrameToDefault(finishedSequence);
+      await waitForPaintFrames(3);
+      await waitForDelay(70);
+      if (transitionToken !== sequenceReturnTransitionToken) return;
+
+      /* Crossfade sequence frame 00 into the matching panorama frame. */
+      sequenceReturnOverlay.classList.remove("is-visible");
+      sequenceReturnOverlay.classList.add("is-fading");
+
+      await new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          sequenceReturnOverlay.removeEventListener("transitionend", finish);
+          resolve();
+        };
+
+        sequenceReturnOverlay.addEventListener("transitionend", finish, { once: true });
+        setTimeout(finish, 800);
+      });
+
+      if (transitionToken !== sequenceReturnTransitionToken) return;
+
+      sequenceReturnOverlay.classList.remove("is-fading");
+      sequenceReturnOverlay.style.removeProperty("background-image");
+      sequenceReturnOverlay.setAttribute("aria-hidden", "true");
+
+      activeSequence = null;
+      sequenceMenuRevealed = false;
+      sequenceChromeRevealStarted = false;
+      sequenceBackTransitioning = false;
+      sequenceLottieIndependentReverse = false;
+      sequenceBackButton.disabled = false;
+      showBackButton(false);
+      setFrameButtonsVisible(true);
+      setHotspotsVisible(true);
+      releaseParallax();
+      restoreThumbnailFeatureAfterSequence();
+      showSequenceLottie(false);
+      setMetalCraftMode(false);
+      resetMetalCraftNavigation();
+
+      if (sequenceLottieReady && sequenceLottieAnimation) {
+        sequenceLottieLastFrame = 0;
+        sequenceLottieAnimation.goToAndStop(0, true);
+      }
+
+      scheduleAutoRotateResume(1500);
     }
 
     function stopSequencePlayback() {
@@ -2630,32 +3966,22 @@
           Forward animation finished:
           pause on the last frame, keep hotspots/buttons hidden, show only BACK.
         */
+        freezePanoramaBackground();
+        revealForwardSequenceMenu();
         showBackButton(true);
         setFrameButtonsVisible(false);
         setHotspotsVisible(false);
       } else {
         /*
           Reverse animation finished:
-          restore the normal panorama frame, bring controls/hotspots back,
-          wait 3 seconds, then continue the default pan.
+          keep sequence frame 00 visible while the panorama is decoded and
+          painted underneath, then crossfade into the panorama.
         */
         const finishedSequence = activeSequence;
-        activeSequence = null;
-
         showBackButton(false);
-        setFrameButtonsVisible(true);
-        resetSequenceFrameToDefault(finishedSequence);
-        setHotspotsVisible(true);
-        releaseParallax();
-        restoreThumbnailFeatureAfterSequence();
-        showSequenceLottie(false);
-
-        if (sequenceLottieReady && sequenceLottieAnimation) {
-          sequenceLottieLastFrame = 0;
-          sequenceLottieAnimation.goToAndStop(0, true);
-        }
-
-        scheduleAutoRotateResume(1500);
+        setFrameButtonsVisible(false);
+        setHotspotsVisible(false);
+        completeReverseSequenceTransition(finishedSequence);
       }
     }
 
@@ -2690,7 +4016,10 @@
 
         sequenceCurrentIndex = nextIndex;
         applySequenceFrame(activeSequence, sequenceCurrentIndex);
+        maybeRevealForwardSequenceMenu();
       }
+
+      maybeRevealForwardSequenceMenu();
 
       if (shouldFinish) {
         finishSequencePlayback();
@@ -2703,30 +4032,67 @@
     async function playSequence(config, direction = 1) {
       if (!config || sequencePlaying) return;
 
-      await Promise.all([
-        preloadSequence(config),
-        initializeSequenceLottie()
-      ]);
+      if (direction === 1) {
+        hideSequenceReturnOverlayImmediately();
+      }
+
+      if (direction === 1) {
+        await Promise.all([
+          preloadSequence(config),
+          initializeSequenceLottie(config)
+        ]);
+      } else {
+        await preloadSequence(config);
+      }
 
       activeSequence = config;
-      autoRotate = false;
-      panVelocity = 0;
+      freezePanoramaBackground();
       forceParallaxNeutral();
-      clearAutoRotateRestart();
       clearPendingArrivalCallback();
 
       sequenceDirection = direction;
       sequencePlaying = true;
       sequenceLastTime = 0;
+      sequenceMenuRevealed = direction !== 1;
+      sequenceChromeRevealStarted = direction !== 1;
+      sequenceLottiePlaybackDirection = direction;
+
+      if (direction === 1) {
+        sequenceBackTransitioning = false;
+        sequenceLottieIndependentReverse = false;
+        sequenceBackButton.disabled = false;
+        sequenceLottieCard.classList.remove("is-returning");
+      }
+
+      if (direction === 1 && isMetalCraftSequence(config)) {
+        setMetalCraftMode(true);
+        resetMetalCraftNavigation();
+      } else if (!isMetalCraftSequence(config)) {
+        setMetalCraftMode(false);
+      }
 
       setFrameButtonsVisible(false);
       showBackButton(false);
       setHotspotsVisible(false);
 
       if (direction === 1) {
-        showSequenceLottie(true, true);
+        /*
+          Mount the card invisibly and hold the custom Lottie on frame zero.
+          It begins normal playback only when the delayed menu is revealed.
+        */
+        if (sequenceLottieReady && sequenceLottieAnimation) {
+          sequenceLottieAnimation.pause();
+          sequenceLottieLastFrame = 0;
+          sequenceLottieAnimation.goToAndStop(0, true);
+        }
+        showSequenceLottie(true, false, false);
       } else {
-        showSequenceLottie(true, false);
+        /*
+          The blur and controls are already fading from the delayed back-button transition.
+          Keep it mounted, but do not reveal its contents again.
+        */
+        sequenceLottiePanel.style.display = "flex";
+        sequenceLottiePanel.setAttribute("aria-hidden", "false");
       }
 
       if (direction === 1) {
@@ -2747,10 +4113,12 @@
       clearAutoRotateRestart();
       clearPendingArrivalCallback();
 
+      const responsiveOffsetX = getResponsiveSequenceOffsetX(config);
+
       moveToFrame(config.frame, () => {
         forceParallaxNeutral();
         playSequence(config, 1);
-      }, true);
+      }, true, responsiveOffsetX);
     }
 
     function animate() {
@@ -2759,16 +4127,25 @@
       hoverPauseStrength += (hoverPauseTarget - hoverPauseStrength) * 0.08;
       recentThumbnailPanSpeed *= 0.90;
 
-      if (autoRotate && !isDragging && !buttonTweenActive && !sequencePlaying) {
-        targetOffset += autoRotateSpeed * autoRotateDirection * (1 - hoverPauseStrength);
-      }
+      const mainPanoramaPage = isMainPanoramaPage();
 
-      if (!isDragging && !buttonTweenActive && !sequencePlaying) {
-        targetOffset += panVelocity;
-        panVelocity *= dragFriction;
+      if (!mainPanoramaPage && !buttonTweenActive) {
+        /* Hard lock: no delayed auto-pan and no leftover drag inertia behind a hotspot window. */
+        autoRotate = false;
+        panVelocity = 0;
+        targetOffset = currentOffset;
+      } else {
+        if (autoRotate && !isDragging && !buttonTweenActive) {
+          targetOffset += autoRotateSpeed * autoRotateDirection * (1 - hoverPauseStrength);
+        }
 
-        if (Math.abs(panVelocity) < 0.001) {
-          panVelocity = 0;
+        if (!isDragging && !buttonTweenActive) {
+          targetOffset += panVelocity;
+          panVelocity *= dragFriction;
+
+          if (Math.abs(panVelocity) < 0.001) {
+            panVelocity = 0;
+          }
         }
       }
 
@@ -2792,7 +4169,7 @@
     container.addEventListener("pointerdown", (event) => {
       updatePointerPosition(event);
 
-      if (sequencePlaying || activeSequence) return;
+      if (sequencePlaying || activeSequence || sequencePreparing) return;
 
       /*
         Important fix:
@@ -2830,7 +4207,7 @@
     container.addEventListener("pointermove", (event) => {
       updatePointerPosition(event);
 
-      if (!isDragging || sequencePlaying || activeSequence) return;
+      if (!isDragging || sequencePlaying || activeSequence || sequencePreparing) return;
 
       const deltaX = event.clientX - previousMouseX;
       recentThumbnailPanSpeed = Math.max(recentThumbnailPanSpeed, Math.abs(deltaX));
@@ -2905,6 +4282,18 @@
       buttonTweenActive = false;
       clearPendingArrivalCallback();
 
+      /*
+        If the browser is resized while a sequence is open, recalculate both
+        the camera landing point and the translated sequence frame using the
+        new rendered panorama width.
+      */
+      if (activeSequence) {
+        const responsiveOffsetX = getResponsiveSequenceOffsetX(activeSequence);
+        currentOffset = getClosestOffsetForFrame(activeSequence.frame) + responsiveOffsetX;
+        targetOffset = currentOffset;
+        applySequenceFrame(activeSequence, sequenceCurrentIndex);
+      }
+
       updateHotspots();
       updateHotspotConnector();
       updateActiveFrameButton();
@@ -2913,10 +4302,18 @@
 
     sequenceLearnMore.addEventListener("click", (event) => {
       event.stopPropagation();
-      /*
-        Placeholder for the future hotspot-specific Learn More action.
-        The current sequence remains paused on its displayed frame.
-      */
+
+      const learnMoreUrl = activeSequence?.learnMoreUrl;
+      if (!learnMoreUrl) return;
+
+      const newWindow = window.open(learnMoreUrl, "_blank");
+
+      if (newWindow) {
+        newWindow.opener = null;
+      } else {
+        // Fallback for browsers that block opening a new tab.
+        window.location.href = learnMoreUrl;
+      }
     });
 
     ["pointerdown", "pointermove", "pointerup"].forEach((eventName) => {
@@ -2925,10 +4322,112 @@
       });
     });
 
-    sequenceBackButton.addEventListener("click", () => {
-      if (sequencePlaying || !activeSequence) return;
+    sequenceBackButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (
+        sequencePlaying ||
+        !activeSequence ||
+        metalCraftTransitioning ||
+        sequenceBackTransitioning
+      ) return;
+
+      const sequenceToReverse = activeSequence;
+      sequenceBackTransitioning = true;
+      sequenceBackButton.disabled = true;
+      metalCraftNavigationToken += 1;
+
+      /*
+        A VARIABLE page must never be reversed as the panorama-return Lottie.
+        Load the primary METAL CRAFT animation, place it on its completed frame,
+        and switch directly to it without stepping through previous variables.
+      */
+      if (
+        isMetalCraftSequence(sequenceToReverse) &&
+        sequenceLottieActiveKey !== metalCraftLottiePages[0].key
+      ) {
+        const primaryReady = await preparePrimaryMetalCraftLottieForPanoramaReturn();
+
+        if (
+          !primaryReady ||
+          activeSequence !== sequenceToReverse
+        ) {
+          sequenceBackTransitioning = false;
+          sequenceBackButton.disabled = false;
+          sequenceLottieIndependentReverse = false;
+          return;
+        }
+      }
+
+      /*
+        Reverse only the primary hotspot Lottie. It remains fully visible for
+        1 second before the grouped window starts shrinking/fading and the JPG
+        image sequence begins its reverse playback behind it.
+      */
+      if (sequenceLottieReady && sequenceLottieAnimation) {
+        const finalFrame = Math.max(
+          0,
+          Math.floor(sequenceLottieAnimation.totalFrames || 1) - 1
+        );
+        const currentFrame = Number(sequenceLottieAnimation.currentFrame || 0);
+
+        sequenceLottieIndependentReverse = true;
+        sequenceLottiePlaybackDirection = -1;
+        sequenceLottieAnimation.pause();
+        sequenceLottieAnimation.setSpeed(2);
+        sequenceLottieAnimation.setDirection(-1);
+
+        if (currentFrame <= 0.5) {
+          sequenceLottieAnimation.goToAndPlay(finalFrame, true);
+        } else {
+          sequenceLottieAnimation.play();
+        }
+      }
+
+      await waitForDelay(1000);
+
+      if (activeSequence !== sequenceToReverse) {
+        sequenceBackTransitioning = false;
+        sequenceBackButton.disabled = false;
+        sequenceLottieIndependentReverse = false;
+        return;
+      }
+
+      /*
+        At 1 second, begin fading only the blurred background and controls.
+        The reversing primary Lottie remains visible while the hotspot JPG
+        sequence begins reversing behind it.
+      */
       setSequenceChromeVisible(false);
-      playSequence(activeSequence, -1);
+      sequenceLottieCard.classList.add("is-returning");
+      playSequence(sequenceToReverse, -1);
+    });
+
+    [sequenceBackButton].forEach((button) => {
+      ["pointerdown", "pointermove", "pointerup"].forEach((eventName) => {
+        button.addEventListener(eventName, (event) => {
+          event.stopPropagation();
+        });
+      });
+    });
+
+    metalCraftPrevButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      navigateMetalCraftOptions(-1);
+    });
+
+    metalCraftNextButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      navigateMetalCraftOptions(1);
+    });
+
+    [metalCraftPrevButton, metalCraftNextButton].forEach((button) => {
+      ["pointerdown", "pointermove", "pointerup"].forEach((eventName) => {
+        button.addEventListener(eventName, (event) => {
+          event.stopPropagation();
+        });
+      });
     });
 
     function activateHotspot(hotspot) {
@@ -2937,10 +4436,8 @@
       const hotspotKey = normalizeHotspotKey(hotspot.text || hotspot.label || hotspot.title);
       const config = sequenceByHotspotText.get(hotspotKey);
 
-      autoRotate = false;
-      panVelocity = 0;
+      freezePanoramaBackground();
 
-      clearAutoRotateRestart();
       clearPendingArrivalCallback();
       showBackButton(false);
       infoBox.style.display = "none";
@@ -2965,6 +4462,16 @@
       const preparationToken = ++sequencePreparationToken;
       const assetsPromise = prepareSequenceAssets(config);
 
+      /*
+        Use the same responsive source-image offset for the camera landing as
+        applySequenceFrame() uses for the sequence element. Without this, the
+        METAL CRAFT frame is translated right while the camera remains at the
+        ordinary panorama-frame origin, leaving a black strip on the left.
+        The same mismatch also makes frame 00 jump left when the return overlay
+        appears at the end of reverse playback.
+      */
+      const responsiveOffsetX = getResponsiveSequenceOffsetX(config);
+
       moveToFrame(hotspot.frame, async () => {
         await assetsPromise;
 
@@ -2974,7 +4481,7 @@
         showSequenceLoading(false);
         forceParallaxNeutral();
         playSequence(config, 1);
-      });
+      }, false, responsiveOffsetX);
     }
 
     hotspots.forEach((hotspot) => {
@@ -3005,6 +4512,11 @@
     }
 
     panToggleButton.addEventListener("click", (event) => {
+      if (panToggleButton.disabled || panToggleButton.style.display === "none") {
+        event.stopPropagation();
+        return;
+      }
+
       event.stopPropagation();
       userPausedAutoRotate = !userPausedAutoRotate;
 
@@ -3012,7 +4524,7 @@
         autoRotate = false;
         clearAutoRotateRestart();
         panVelocity = 0;
-      } else if (!isDragging && !buttonTweenActive && !sequencePlaying) {
+      } else if (!isDragging && !buttonTweenActive && isMainPanoramaPage()) {
         autoRotate = true;
       }
 
@@ -3049,6 +4561,13 @@
 
     function setPanToggleVisible(visible) {
       panToggleButton.style.display = visible ? "flex" : "none";
+      panToggleButton.style.pointerEvents = visible ? "auto" : "none";
+      panToggleButton.style.visibility = visible ? "visible" : "hidden";
+      panToggleButton.disabled = !visible;
+      panToggleButton.setAttribute("aria-hidden", visible ? "false" : "true");
+      if (!visible) {
+        panToggleButton.blur();
+      }
     }
 
     function hideThumbnailFeatureForSequence() {
@@ -3058,8 +4577,8 @@
       setActiveHotspotButton(null);
       hotspotConnectorEnabled = false;
       hotspotFocusCircle.style.display = "none";
-      hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
-      hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB);
+      hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
+      hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB, hotspotConnectorPulseB);
       hideAllThumbnails();
     }
 
@@ -3070,8 +4589,7 @@
       if (thumbnailsWereOpenBeforeSequence) {
         hotspotConnectorEnabled = true;
         hotspotFocusCircle.classList.remove("is-disabled");
-        hotspotFocusClose.textContent = "×";
-        hotspotFocusClose.setAttribute("aria-label", "Hide thumbnails");
+        setHotspotFocusCloseToCollapse();
 
         connectorTransitionStart = performance.now();
         connectorOutgoingHotspot = null;
@@ -3089,10 +4607,9 @@
       } else {
         hotspotConnectorEnabled = false;
         hotspotFocusCircle.classList.add("is-disabled");
-        hotspotFocusClose.textContent = "SHOW THUMBNAILS";
-        hotspotFocusClose.setAttribute("aria-label", "Show thumbnails");
-        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
-        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB);
+        setHotspotFocusCloseToShow();
+        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
+        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB, hotspotConnectorPulseB);
         hideAllThumbnails();
       }
     }
@@ -3103,16 +4620,14 @@
 
       if (!hotspotConnectorEnabled) {
         hotspotFocusCircle.classList.add("is-disabled");
-        hotspotFocusClose.textContent = "SHOW THUMBNAILS";
-        hotspotFocusClose.setAttribute("aria-label", "Show thumbnails");
-        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA);
-        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB);
+        setHotspotFocusCloseToShow();
+        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
+        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB, hotspotConnectorPulseB);
         hideAllThumbnails();
         setActiveHotspotButton(null);
       } else {
         hotspotFocusCircle.classList.remove("is-disabled");
-        hotspotFocusClose.textContent = "×";
-        hotspotFocusClose.setAttribute("aria-label", "Hide thumbnails");
+        setHotspotFocusCloseToCollapse();
         connectorTransitionStart = performance.now();
         connectorOutgoingHotspot = null;
         connectorTransitioning = true;
@@ -3131,8 +4646,9 @@
 
     hotspotConnectorEnabled = false;
     hotspotFocusCircle.classList.remove("is-disabled");
-    hotspotFocusClose.textContent = "×";
-    hotspotFocusClose.setAttribute("aria-label", "Hide thumbnails");
+    setHotspotFocusCloseToCollapse();
+    setMetalCraftMode(false);
+    resetMetalCraftNavigation();
 
     buildPanoramaStrip();
     updatePanorama();
@@ -3142,4 +4658,5 @@
     revealInitialThumbnailFeature();
   </script>
 </body>
+
 </html>
