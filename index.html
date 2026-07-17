@@ -1778,6 +1778,7 @@
       { key: "randomPlank", frame: 0, hotspotText: "RANDOM PLANK", folder: "RANDOM PLANK", prefix: "RANDOM PLANK", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/random-plank/" },
       { key: "metalCraft", frame: 0, hotspotText: "METAL CRAFT", folder: "METAL CRAFT", prefix: "METAL CRAFT", count: 40, pad: 2, extension: "jpg", fps: 24, sourceOffsetX: 281, sourceCanvasWidth: 1920, learnMoreUrl: "https://luxarpro.com/metal-craft-series/" },
       { key: "boardBatten", frame: 1, hotspotText: "BOARD + BATTEN", folder: "BOARD + BATTEN", prefix: "BOARD + BATTEN", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/board-and-batten/" },
+      { key: "boardBatten02", frame: 1, hotspotText: "BOARD + BATTEN", folder: "BOARD + BATTEN 02", prefix: "BOARD + BATTEN", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/board-and-batten/" },
       { key: "soffit", frame: 1, hotspotText: "SOFFIT", folder: "SOFFIT", prefix: "SOFFIT", count: 48, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/soffit/" },
       { key: "luxLap", frame: 1, hotspotText: "LUX LAP", folder: "LUX LAP", prefix: "LUX LAP", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/lux-lap-cladding-panel/" },
       { key: "channelSiding", frame: 2, hotspotText: "CHANNEL SIDING", folder: "CHANNEL SIDING", prefix: "CHANNEL SIDING", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/channel-siding/" },
@@ -1785,6 +1786,7 @@
     ];
 
     const sequenceByFrame = new Map();
+    const sequenceByKey = new Map();
     const sequenceByHotspotText = new Map();
 
     function normalizeHotspotKey(value) {
@@ -1816,7 +1818,17 @@
       config.imageElements = [];
 
       sequenceByFrame.set(config.frame, config);
-      sequenceByHotspotText.set(normalizeHotspotKey(config.hotspotText), config);
+      sequenceByKey.set(config.key, config);
+
+      /*
+        Keep the first matching title as the default for ordinary hotspots.
+        Duplicate titles can select a different sequence explicitly with
+        hotspot.sequenceKey without changing their visible product name.
+      */
+      const normalizedHotspotText = normalizeHotspotKey(config.hotspotText);
+      if (!sequenceByHotspotText.has(normalizedHotspotText)) {
+        sequenceByHotspotText.set(normalizedHotspotText, config);
+      }
     });
 
     let autoRotate = true;
@@ -2241,7 +2253,8 @@
         y: 22.06,
         offsetY: 60,
         title: "Hotspot 4",
-        text: "BOARD + BATTEN"
+        text: "BOARD + BATTEN",
+        sequenceKey: "boardBatten02"
       },
       {
         element: document.getElementById("hotspot5"),
@@ -2261,7 +2274,8 @@
         y: 60.48,
         offsetY: -55,
         title: "Hotspot 6",
-        text: "BOARD + BATTEN"
+        text: "BOARD + BATTEN",
+        sequenceKey: "boardBatten"
       },
       {
         element: document.getElementById("hotspot7"),
@@ -4434,7 +4448,9 @@
       if (sequencePlaying || activeSequence || sequencePreparing) return;
 
       const hotspotKey = normalizeHotspotKey(hotspot.text || hotspot.label || hotspot.title);
-      const config = sequenceByHotspotText.get(hotspotKey);
+      const config = hotspot.sequenceKey
+        ? sequenceByKey.get(hotspot.sequenceKey)
+        : sequenceByHotspotText.get(hotspotKey);
 
       freezePanoramaBackground();
 
