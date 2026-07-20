@@ -1573,6 +1573,87 @@
         height: 100%;
       }
     }
+
+    /*
+      FINAL MOBILE LANDSCAPE LAYOUT
+      Keep CONTINUE below the Lottie, matching portrait and desktop behavior.
+      The complete card scales down to the available mobile viewport instead
+      of splitting into a side-by-side layout.
+    */
+    @media (hover: none) and (pointer: coarse) and (orientation: landscape),
+    (max-height: 600px) and (orientation: landscape) {
+      #sequenceLottiePanel {
+        padding:
+          max(40px, calc(env(safe-area-inset-top) + 34px))
+          max(12px, env(safe-area-inset-right))
+          max(8px, env(safe-area-inset-bottom))
+          max(12px, env(safe-area-inset-left));
+      }
+
+      #sequenceLottieCard {
+        width: min(92vw, 820px);
+        max-width: calc(100vw - 28px);
+        max-height: calc(100vh - 50px);
+        max-height: calc(100dvh - 50px);
+        padding: 8px 12px 10px;
+        border-radius: 17px;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        box-sizing: border-box;
+      }
+
+      #sequenceVisualGroup {
+        width: 100%;
+        min-height: 0;
+      }
+
+      #sequenceLottie {
+        width: min(88vw, 760px);
+        height: min(53vh, 300px);
+        height: min(53dvh, 300px);
+        flex: 0 1 auto;
+      }
+
+      #sequenceLearnMore,
+      #sequenceLottieCard.is-metal-craft #sequenceLearnMore {
+        margin: 6px 0 0;
+        flex: 0 0 auto;
+        max-width: none;
+        padding: 8px 16px;
+        font-size: 9px;
+        line-height: 1;
+        white-space: nowrap;
+        text-align: center;
+      }
+    }
+
+    @media (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 430px) {
+      #sequenceLottiePanel {
+        padding-top: max(36px, calc(env(safe-area-inset-top) + 30px));
+        padding-bottom: max(6px, env(safe-area-inset-bottom));
+      }
+
+      #sequenceLottieCard {
+        width: min(92vw, 720px);
+        max-height: calc(100dvh - 42px);
+        padding: 6px 10px 8px;
+        border-radius: 14px;
+      }
+
+      #sequenceLottie {
+        width: min(86vw, 650px);
+        height: min(48dvh, 220px);
+      }
+
+      #sequenceLearnMore,
+      #sequenceLottieCard.is-metal-craft #sequenceLearnMore {
+        margin-top: 4px;
+        padding: 7px 13px;
+        font-size: 8px;
+      }
+    }
   </style>
 </head>
 
@@ -1748,6 +1829,15 @@
     const frameFolder = "180";
     const frameCount = 3;
     const panoFrameAspectRatio = 16 / 9;
+
+    /*
+      Hotspot adjustments were originally measured against the 1920 × 1080
+      panorama artwork. Keep those nudges in source-image space and scale them
+      with the rendered panorama so hotspots stay attached to the same object
+      at every browser and device aspect ratio.
+    */
+    const panoSourceWidth = 1920;
+    const panoSourceHeight = 1080;
 
     const frames = Array.from({ length: frameCount }, (_, i) => {
       return `${frameFolder}/frame${String(i).padStart(4, "0")}.jpg`;
@@ -2474,10 +2564,20 @@
       let strongestHoverPause = 0;
 
       hotspots.forEach((hotspot) => {
+        /*
+          offsetX/offsetY are source-image pixel adjustments, not viewport
+          pixels. Scaling them with the rendered 1920 × 1080 frame prevents
+          the old drift that appeared when the browser aspect ratio changed.
+        */
+        const responsiveOffsetX =
+          Number(hotspot.offsetX || 0) * (frameWidth / panoSourceWidth);
+        const responsiveOffsetY =
+          Number(hotspot.offsetY || 0) * (frameHeight / panoSourceHeight);
+
         const hotspotBaseX =
           hotspot.frame * frameWidth +
           (hotspot.x / 100) * frameWidth +
-          (hotspot.offsetX || 0);
+          responsiveOffsetX;
 
         let bestScreenX = 0;
         let bestDistance = Infinity;
@@ -2493,7 +2593,10 @@
           }
         }
 
-        const screenY = panoStripTop + (hotspot.y / 100) * frameHeight + (hotspot.offsetY || 0);
+        const screenY =
+          panoStripTop +
+          (hotspot.y / 100) * frameHeight +
+          responsiveOffsetY;
 
         const visible =
           hotspotsVisible &&
