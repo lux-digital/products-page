@@ -1764,19 +1764,19 @@
       frame, hotspotText, folder, prefix, count
     */
     /*
-      Each unique hotspot has a 40-frame JPG sequence.
+      Sequence frame counts are defined per hotspot below.
 
       Folder: hotspot title
-      Files:  hotspot title + 00 through 39
+      Files:  hotspot title + a two-digit frame number
 
       Examples:
-      CUSTOM CUT/CUSTOM CUT00.jpg
-      CUSTOM CUT/CUSTOM CUT39.jpg
+      METAL CRAFT/METAL CRAFT00.jpg
+      METAL CRAFT/METAL CRAFT29.jpg
     */
     const sequenceConfigs = [
       { key: "customCut", frame: 0, hotspotText: "CUSTOM CUT", folder: "CUSTOM CUT", prefix: "CUSTOM CUT", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/v-groove-steel-siding/" },
       { key: "randomPlank", frame: 0, hotspotText: "RANDOM PLANK", folder: "RANDOM PLANK", prefix: "RANDOM PLANK", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/random-plank/" },
-      { key: "metalCraft", frame: 0, hotspotText: "METAL CRAFT", folder: "METAL CRAFT", prefix: "METAL CRAFT", count: 40, pad: 2, extension: "jpg", fps: 24, sourceOffsetX: 281, sourceCanvasWidth: 1920, learnMoreUrl: "https://luxarpro.com/metal-craft-series/" },
+      { key: "metalCraft", frame: 0, hotspotText: "METAL CRAFT", folder: "METAL CRAFT", prefix: "METAL CRAFT", count: 30, pad: 2, extension: "jpg", fps: 24, sourceOffsetX: 281, sourceCanvasWidth: 1920, learnMoreUrl: "https://luxarpro.com/metal-craft-series/" },
       { key: "boardBatten", frame: 1, hotspotText: "BOARD + BATTEN", folder: "BOARD + BATTEN", prefix: "BOARD + BATTEN", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/board-and-batten/" },
       { key: "boardBatten02", frame: 1, hotspotText: "BOARD + BATTEN", folder: "BOARD + BATTEN 02", prefix: "BOARD + BATTEN", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/board-and-batten/" },
       { key: "soffit", frame: 1, hotspotText: "SOFFIT", folder: "SOFFIT", prefix: "SOFFIT", count: 48, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/soffit/" },
