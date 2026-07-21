@@ -1959,8 +1959,10 @@
       #hotspotFocusClose {
         width: 28px;
         height: 28px;
-        right: -9px;
-        bottom: -5px;
+        /* Keep the small control outside the circle instead of letting the
+           two circular shapes collide as the focus element scales down. */
+        right: -20px;
+        bottom: -4px;
       }
 
       #hotspotFocusClose svg {
@@ -1975,23 +1977,19 @@
         font-size: 9px;
       }
 
-      /* Keep the pause/play control centered until the hotspot dropdown opens.
-         While the dropdown occupies the top-right, slide pause/play to the
-         matching top-left position so the header feels intentionally balanced. */
+      /* Whenever the mobile dropdown control replaces the desktop button row,
+         the pause/play control occupies the matching top-left position. It no
+         longer waits for the dropdown to be opened before moving. */
       #panToggleButton {
-        transition:
-          left 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-          background 0.2s ease,
-          transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-      }
-
-      body.mobile-hotspot-menu-open #panToggleButton {
         left: max(10px, env(safe-area-inset-left));
         transform: none;
+        transition:
+          background 0.2s ease,
+          transform 0.2s ease;
       }
 
-      body.mobile-hotspot-menu-open #panToggleButton:hover,
-      body.mobile-hotspot-menu-open #panToggleButton:focus-visible {
+      #panToggleButton:hover,
+      #panToggleButton:focus-visible {
         transform: scale(1.05);
       }
     }
@@ -2042,7 +2040,7 @@
       #hotspotFocusClose {
         width: 24px;
         height: 24px;
-        right: -8px;
+        right: -18px;
         bottom: -4px;
       }
 
@@ -2052,7 +2050,7 @@
         font-size: 8px;
       }
 
-      body.mobile-hotspot-menu-open #panToggleButton {
+      #panToggleButton {
         left: max(8px, env(safe-area-inset-left));
       }
     }
@@ -2387,6 +2385,15 @@
     const autoRotateSpeed = 0.5;
     const autoRotateResumeDelay = 1500;
 
+    /*
+      Mobile landscape uses a height-fit panorama while browsing so Safari's
+      visible viewport (including the state with the URL/tab bars open) never
+      crops the upper or lower hotspot area. Before a sequence begins, this
+      flag switches the panorama to the normal full-cover size while the camera
+      pans and zooms in one continuous animation.
+    */
+    let sequenceCameraZoomed = false;
+
     let frameWidth = getPanoFrameSize().width;
     let frameHeight = getPanoFrameSize().height;
     let panoStripTop = getPanoFrameSize().top;
@@ -2399,6 +2406,15 @@
     let buttonTweenStartOffset = 0;
     let buttonTweenEndOffset = 0;
     let buttonTweenStartTime = 0;
+    let buttonTweenZoomActive = false;
+    let buttonTweenStartFrameWidth = 0;
+    let buttonTweenStartFrameHeight = 0;
+    let buttonTweenStartFrameTop = 0;
+    let buttonTweenEndFrameWidth = 0;
+    let buttonTweenEndFrameHeight = 0;
+    let buttonTweenEndFrameTop = 0;
+    let buttonTweenStartCameraUnit = 0;
+    let buttonTweenEndCameraUnit = 0;
     const buttonTweenDuration = 2400;
     const buttonSettleDelay = 250;
     let buttonArrivalCallback = null;
@@ -2413,8 +2429,9 @@
       Portrait phones see only a narrow horizontal slice of each 16:9 sequence.
       Store an additional crop that shifts the decoded sequence canvas left so
       the selected hotspot remains as close to screen centre as full coverage
-      allows. The panorama landing uses the same crop, preventing any jump when
-      frame 00 replaces the panorama.
+      allows. Mobile landscape instead browses zoomed out, then the camera pans
+      and zooms to normal cover mode before frame 00 appears. The panorama and
+      sequence therefore share the same final alignment without a jump.
     */
     let sequenceFocusHotspot = null;
     let sequenceViewportCropX = 0;
@@ -2472,27 +2489,93 @@
 
     let autoRotateRestartTimeout = null;
 
-    function getPanoFrameSize() {
+    function getVisibleViewportSize() {
       /*
-        Never stretch the renders.
-        This calculates a true 16:9 frame that is zoomed enough to cover the viewer.
-        If the browser becomes wider than 16:9, the frame gets wider and taller,
-        then crops vertically instead of distorting the image.
+        visualViewport is essential on iOS Safari because its height changes
+        when the URL/tab bars are shown or hidden. Fall back to innerWidth and
+        innerHeight everywhere else.
       */
-      const widthByHeight = window.innerHeight * panoFrameAspectRatio;
-      const width = Math.max(window.innerWidth, widthByHeight);
+      const viewport = window.visualViewport;
+      return {
+        width: Math.max(1, Number(viewport?.width || window.innerWidth || 1)),
+        height: Math.max(1, Number(viewport?.height || window.innerHeight || 1))
+      };
+    }
+
+    function isMobileLandscapePanoramaLayout() {
+      const viewport = getVisibleViewportSize();
+      const touchLayout =
+        window.matchMedia("(hover: none) and (pointer: coarse)").matches ||
+        (navigator.maxTouchPoints > 0 &&
+          Math.min(viewport.width, viewport.height) <= 900);
+      const landscapeLayout =
+        window.matchMedia("(orientation: landscape)").matches ||
+        viewport.width > viewport.height;
+
+      return touchLayout && landscapeLayout;
+    }
+
+    function shouldFitMobileLandscapeHeight() {
+      if (!isMobileLandscapePanoramaLayout()) return false;
+
+      const viewport = getVisibleViewportSize();
+      const screenShortSide = Math.max(1, Math.min(
+        Number(window.screen?.width || viewport.height),
+        Number(window.screen?.height || viewport.height)
+      ));
+      const visibleHeightRatio = viewport.height / screenShortSide;
+      const visibleAspectRatio = viewport.width / viewport.height;
+
+      /*
+        Preserve the existing cover composition in true fullscreen landscape.
+        Switch to full-height fit only when browser chrome has materially
+        reduced the visible height (or when the resulting viewport is extremely
+        wide), which is the Safari URL/tab-bar case shown in the screenshot.
+      */
+      return visibleHeightRatio < 0.90 || visibleAspectRatio > 2.35;
+    }
+
+    function getCoverPanoFrameSize() {
+      /* Normal 16:9 cover mode used by desktop, portrait, and every sequence. */
+      const viewport = getVisibleViewportSize();
+      const widthByHeight = viewport.height * panoFrameAspectRatio;
+      const width = Math.max(viewport.width, widthByHeight);
       const height = width / panoFrameAspectRatio;
-      const top = (window.innerHeight - height) / 2;
+      const top = (viewport.height - height) / 2;
 
       return { width, height, top };
     }
 
-    function syncPanoFrameWidthCSS() {
-      const size = getPanoFrameSize();
+    function getBrowsePanoFrameSize() {
+      const viewport = getVisibleViewportSize();
 
-      frameWidth = size.width;
-      frameHeight = size.height;
-      panoStripTop = size.top;
+      if (shouldFitMobileLandscapeHeight()) {
+        /*
+          Fit the complete 16:9 artwork to the currently visible Safari height.
+          The panorama strip is continuous, so the extra-wide viewport simply
+          reveals neighbouring panorama content at the sides rather than blank
+          space. Most importantly, no hotspot or title is vertically cropped.
+        */
+        return {
+          width: viewport.height * panoFrameAspectRatio,
+          height: viewport.height,
+          top: 0
+        };
+      }
+
+      return getCoverPanoFrameSize();
+    }
+
+    function getPanoFrameSize() {
+      return sequenceCameraZoomed
+        ? getCoverPanoFrameSize()
+        : getBrowsePanoFrameSize();
+    }
+
+    function applyPanoFrameSize(size) {
+      frameWidth = Math.max(1, Number(size.width || 1));
+      frameHeight = Math.max(1, Number(size.height || 1));
+      panoStripTop = Number(size.top || 0);
       totalWidth = frameWidth * frameCount;
 
       document.documentElement.style.setProperty("--pano-frame-width", `${frameWidth}px`);
@@ -2500,29 +2583,38 @@
       document.documentElement.style.setProperty("--pano-strip-top", `${panoStripTop}px`);
     }
 
+    function syncPanoFrameWidthCSS() {
+      applyPanoFrameSize(getPanoFrameSize());
+    }
+
     /*
       Convert an offset measured in the original 1920px source image into
       the matching number of CSS pixels at the panorama's current rendered
       width. This keeps METAL CRAFT aligned at every viewport aspect ratio.
     */
-    function getResponsiveSequenceOffsetX(config) {
+    function getResponsiveSequenceOffsetX(config, renderedFrameWidth = frameWidth) {
       const sourceOffsetX = Number(config?.sourceOffsetX || 0);
       const sourceCanvasWidth = Number(config?.sourceCanvasWidth || 1920);
 
       if (!sourceOffsetX || !sourceCanvasWidth) return 0;
 
-      return sourceOffsetX * (frameWidth / sourceCanvasWidth);
+      return sourceOffsetX * (renderedFrameWidth / sourceCanvasWidth);
     }
 
     function isMobilePortraitSequenceLayout() {
+      const viewport = getVisibleViewportSize();
       const mobileLayout =
         window.matchMedia("(hover: none) and (pointer: coarse)").matches ||
-        window.innerWidth <= 700;
+        viewport.width <= 700;
       const portraitLayout =
         window.matchMedia("(orientation: portrait)").matches ||
-        window.innerHeight >= window.innerWidth;
+        viewport.height >= viewport.width;
 
       return mobileLayout && portraitLayout;
+    }
+
+    function isMobileLandscapeSequenceLayout() {
+      return isMobileLandscapePanoramaLayout();
     }
 
     function getHotspotLocalImageX(hotspot) {
@@ -2542,9 +2634,10 @@
         (zero for every ordinary sequence and the compensated value for METAL
         CRAFT). Centre the hotspot inside that sequence coordinate system.
       */
+      const viewport = getVisibleViewportSize();
       const sequenceSourceStartX = getResponsiveSequenceOffsetX(config);
       const hotspotXInsideSequence = getHotspotLocalImageX(hotspot) - sequenceSourceStartX;
-      const desiredCropX = hotspotXInsideSequence - window.innerWidth / 2;
+      const desiredCropX = hotspotXInsideSequence - viewport.width / 2;
 
       /*
         A negative crop would expose space to the left of frame 00. A crop
@@ -2552,7 +2645,7 @@
         Clamping to this range keeps the first and every later sequence frame
         covering the complete visible screen.
       */
-      const maximumCoveringCropX = Math.max(0, frameWidth - window.innerWidth);
+      const maximumCoveringCropX = Math.max(0, frameWidth - viewport.width);
       return Math.max(0, Math.min(desiredCropX, maximumCoveringCropX));
     }
 
@@ -3068,11 +3161,30 @@
       return closestOffset;
     }
 
+    function getClosestCameraUnitForFrame(frameIndex, cameraUnit = currentOffset / frameWidth) {
+      const desiredUnitInMiddleCopy = frameCount + frameIndex;
+      let closestUnit = desiredUnitInMiddleCopy;
+      let closestDistance = Infinity;
+
+      for (let repeat = -frameCount; repeat <= frameCount; repeat += frameCount) {
+        const candidateUnit = desiredUnitInMiddleCopy + repeat;
+        const distance = Math.abs(candidateUnit - cameraUnit);
+
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestUnit = candidateUnit;
+        }
+      }
+
+      return closestUnit;
+    }
+
     function moveToFrame(
       frameIndex,
       onArrive = null,
       returnPlaneToNeutral = false,
-      destinationOffsetX = 0
+      destinationOffsetX = 0,
+      targetFrameSize = null
     ) {
       autoRotate = false;
       isDragging = false;
@@ -3085,16 +3197,53 @@
 
       buttonTweenActive = true;
       buttonTweenStartOffset = currentOffset;
-      /*
-        Most sequences line up exactly with the start of their panorama frame.
-        METAL CRAFT uses a custom first sequence frame, so its panorama landing
-        position can be shifted independently before the sequence begins.
-        A positive value moves the panorama camera farther to the right.
-      */
-      buttonTweenEndOffset =
-        getClosestOffsetForFrame(frameIndex) + Number(destinationOffsetX || 0);
       buttonTweenStartTime = performance.now();
       buttonArrivalCallback = onArrive;
+
+      const hasZoomTarget =
+        targetFrameSize &&
+        (Math.abs(Number(targetFrameSize.width) - frameWidth) > 0.5 ||
+          Math.abs(Number(targetFrameSize.height) - frameHeight) > 0.5 ||
+          Math.abs(Number(targetFrameSize.top) - panoStripTop) > 0.5);
+
+      if (hasZoomTarget) {
+        /*
+          Interpolate both the source-camera position and the rendered 16:9
+          frame dimensions. The horizontal pan and the zoom therefore read as
+          one camera move, and the final panorama pixels exactly match the
+          sequence canvas before frame 00 appears.
+        */
+        buttonTweenZoomActive = true;
+        buttonTweenStartFrameWidth = frameWidth;
+        buttonTweenStartFrameHeight = frameHeight;
+        buttonTweenStartFrameTop = panoStripTop;
+        buttonTweenEndFrameWidth = Number(targetFrameSize.width);
+        buttonTweenEndFrameHeight = Number(targetFrameSize.height);
+        buttonTweenEndFrameTop = Number(targetFrameSize.top);
+        buttonTweenStartCameraUnit = currentOffset / frameWidth;
+
+        const closestFrameUnit = getClosestCameraUnitForFrame(
+          frameIndex,
+          buttonTweenStartCameraUnit
+        );
+        buttonTweenEndCameraUnit =
+          closestFrameUnit +
+          Number(destinationOffsetX || 0) / buttonTweenEndFrameWidth;
+        buttonTweenEndOffset =
+          buttonTweenEndCameraUnit * buttonTweenEndFrameWidth;
+
+        sequenceCameraZoomed = true;
+      } else {
+        buttonTweenZoomActive = false;
+        /*
+          Most sequences line up exactly with the start of their panorama frame.
+          METAL CRAFT uses a custom first sequence frame, so its panorama landing
+          position can be shifted independently before the sequence begins.
+          A positive value moves the panorama camera farther to the right.
+        */
+        buttonTweenEndOffset =
+          getClosestOffsetForFrame(frameIndex) + Number(destinationOffsetX || 0);
+      }
 
       if (returnPlaneToNeutral) {
         beginParallaxReturn(buttonTweenDuration);
@@ -3110,16 +3259,51 @@
       const progress = Math.min(elapsed / buttonTweenDuration, 1);
       const easedProgress = easeInOutQuint(progress);
 
-      currentOffset =
-        buttonTweenStartOffset +
-        (buttonTweenEndOffset - buttonTweenStartOffset) * easedProgress;
+      if (buttonTweenZoomActive) {
+        const nextFrameWidth =
+          buttonTweenStartFrameWidth +
+          (buttonTweenEndFrameWidth - buttonTweenStartFrameWidth) * easedProgress;
+        const nextFrameHeight =
+          buttonTweenStartFrameHeight +
+          (buttonTweenEndFrameHeight - buttonTweenStartFrameHeight) * easedProgress;
+        const nextFrameTop =
+          buttonTweenStartFrameTop +
+          (buttonTweenEndFrameTop - buttonTweenStartFrameTop) * easedProgress;
+        const nextCameraUnit =
+          buttonTweenStartCameraUnit +
+          (buttonTweenEndCameraUnit - buttonTweenStartCameraUnit) * easedProgress;
+
+        applyPanoFrameSize({
+          width: nextFrameWidth,
+          height: nextFrameHeight,
+          top: nextFrameTop
+        });
+
+        currentOffset = nextCameraUnit * frameWidth;
+      } else {
+        currentOffset =
+          buttonTweenStartOffset +
+          (buttonTweenEndOffset - buttonTweenStartOffset) * easedProgress;
+      }
 
       targetOffset = currentOffset;
 
       if (progress >= 1) {
+        if (buttonTweenZoomActive) {
+          applyPanoFrameSize({
+            width: buttonTweenEndFrameWidth,
+            height: buttonTweenEndFrameHeight,
+            top: buttonTweenEndFrameTop
+          });
+          currentOffset = buttonTweenEndCameraUnit * frameWidth;
+          buttonTweenEndOffset = currentOffset;
+        } else {
+          currentOffset = buttonTweenEndOffset;
+        }
+
         buttonTweenActive = false;
-        targetOffset = buttonTweenEndOffset;
-        currentOffset = buttonTweenEndOffset;
+        buttonTweenZoomActive = false;
+        targetOffset = currentOffset;
 
         if (buttonArrivalCallback) {
           const callback = buttonArrivalCallback;
@@ -3153,12 +3337,14 @@
       /* Scale progressively from phone to tablet instead of switching at one
          hard breakpoint. This keeps the hotspot circles comfortable on small
          screens while preserving their prominence on larger touch devices. */
-      const shortViewportSide = Math.min(window.innerWidth, window.innerHeight);
+      const viewport = getVisibleViewportSize();
+      const shortViewportSide = Math.min(viewport.width, viewport.height);
       return Math.max(0.58, Math.min(0.82, shortViewportSide / 600));
     }
 
     function updateHotspots() {
       let strongestHoverPause = 0;
+      const viewport = getVisibleViewportSize();
       const responsiveHotspotScaleFactor = getResponsiveHotspotScaleFactor();
 
       hotspots.forEach((hotspot) => {
@@ -3183,7 +3369,7 @@
         for (let repeat = 0; repeat < 3; repeat++) {
           const worldX = hotspotBaseX + repeat * totalWidth;
           const screenX = worldX - currentOffset;
-          const distance = Math.abs(screenX - window.innerWidth / 2);
+          const distance = Math.abs(screenX - viewport.width / 2);
 
           if (distance < bestDistance) {
             bestDistance = distance;
@@ -3199,11 +3385,11 @@
         const visible =
           hotspotsVisible &&
           bestScreenX > -80 &&
-          bestScreenX < window.innerWidth + 80 &&
+          bestScreenX < viewport.width + 80 &&
           screenY > -80 &&
-          screenY < window.innerHeight + 80;
+          screenY < viewport.height + 80;
 
-        const maxDistance = window.innerWidth / 2;
+        const maxDistance = viewport.width / 2;
         const normalizedDistance = Math.min(bestDistance / maxDistance, 1);
         const centerStrength = 1 - normalizedDistance;
 
@@ -3877,8 +4063,13 @@
         targetOffset -= totalWidth;
 
         if (buttonTweenActive) {
-          buttonTweenStartOffset -= totalWidth;
-          buttonTweenEndOffset -= totalWidth;
+          if (buttonTweenZoomActive) {
+            buttonTweenStartCameraUnit -= frameCount;
+            buttonTweenEndCameraUnit -= frameCount;
+          } else {
+            buttonTweenStartOffset -= totalWidth;
+            buttonTweenEndOffset -= totalWidth;
+          }
         }
       }
 
@@ -3887,8 +4078,13 @@
         targetOffset += totalWidth;
 
         if (buttonTweenActive) {
-          buttonTweenStartOffset += totalWidth;
-          buttonTweenEndOffset += totalWidth;
+          if (buttonTweenZoomActive) {
+            buttonTweenStartCameraUnit += frameCount;
+            buttonTweenEndCameraUnit += frameCount;
+          } else {
+            buttonTweenStartOffset += totalWidth;
+            buttonTweenEndOffset += totalWidth;
+          }
         }
       }
     }
@@ -4499,6 +4695,63 @@
       });
     }
 
+    function animatePanoramaToBrowseLayout(duration = 950) {
+      const targetSize = getBrowsePanoFrameSize();
+      const sizeAlreadyCorrect =
+        Math.abs(targetSize.width - frameWidth) < 0.5 &&
+        Math.abs(targetSize.height - frameHeight) < 0.5 &&
+        Math.abs(targetSize.top - panoStripTop) < 0.5;
+
+      sequenceCameraZoomed = false;
+
+      if (sizeAlreadyCorrect) {
+        applyPanoFrameSize(targetSize);
+        return Promise.resolve();
+      }
+
+      const viewport = getVisibleViewportSize();
+      const startWidth = frameWidth;
+      const startHeight = frameHeight;
+      const startTop = panoStripTop;
+      const sourcePointAtViewportCenter =
+        (currentOffset + viewport.width / 2) / startWidth;
+      const startTime = performance.now();
+
+      buttonTweenActive = false;
+      buttonTweenZoomActive = false;
+      targetOffset = currentOffset;
+
+      return new Promise((resolve) => {
+        const step = (now) => {
+          const progress = Math.min((now - startTime) / duration, 1);
+          const easedProgress = easeInOutQuint(progress);
+
+          applyPanoFrameSize({
+            width: startWidth + (targetSize.width - startWidth) * easedProgress,
+            height: startHeight + (targetSize.height - startHeight) * easedProgress,
+            top: startTop + (targetSize.top - startTop) * easedProgress
+          });
+
+          /* Hold the same source point beneath the centre of the viewport. */
+          currentOffset =
+            sourcePointAtViewportCenter * frameWidth - viewport.width / 2;
+          targetOffset = currentOffset;
+
+          if (progress < 1) {
+            requestAnimationFrame(step);
+          } else {
+            applyPanoFrameSize(targetSize);
+            currentOffset =
+              sourcePointAtViewportCenter * frameWidth - viewport.width / 2;
+            targetOffset = currentOffset;
+            resolve();
+          }
+        };
+
+        requestAnimationFrame(step);
+      });
+    }
+
     function syncSequencePlaybackCanvasSize() {
       if (!sequencePlaybackCanvas || !sequencePlaybackContext) return;
 
@@ -4701,6 +4954,14 @@
       sequenceFocusHotspot = null;
       sequenceViewportCropX = 0;
       showSequencePlaybackCanvas(false);
+
+      /*
+        Return mobile landscape to its full-height browsing composition after
+        the sequence frame has blended back into the panorama. Hotspots remain
+        hidden until the zoom-out is complete, preventing any visible jump.
+      */
+      await animatePanoramaToBrowseLayout(950);
+
       sequenceLottieCard.classList.remove("is-neo-lumber");
       sequenceMenuRevealed = false;
       sequenceChromeRevealStarted = false;
@@ -4897,12 +5158,18 @@
       clearAutoRotateRestart();
       clearPendingArrivalCallback();
 
-      const responsiveOffsetX = getResponsiveSequenceOffsetX(config);
+      const targetFrameSize = isMobileLandscapeSequenceLayout()
+        ? getCoverPanoFrameSize()
+        : null;
+      const responsiveOffsetX = getResponsiveSequenceOffsetX(
+        config,
+        targetFrameSize?.width || frameWidth
+      );
 
       moveToFrame(config.frame, () => {
         forceParallaxNeutral();
         playSequence(config, 1);
-      }, true, responsiveOffsetX);
+      }, true, responsiveOffsetX, targetFrameSize);
     }
 
     function animate() {
@@ -5055,35 +5322,51 @@
       }
     });
 
-    window.addEventListener("resize", () => {
-      const normalizedPosition = currentOffset / totalWidth;
+    let viewportResizeRAF = null;
 
-      syncPanoFrameWidthCSS();
-
-      currentOffset = normalizedPosition * totalWidth;
-      targetOffset = currentOffset;
-
-      buttonTweenActive = false;
-      clearPendingArrivalCallback();
-
-      /*
-        If the browser is resized while a sequence is open, recalculate both
-        the camera landing point and the translated sequence frame using the
-        new rendered panorama width.
-      */
-      if (activeSequence) {
-        updateSequenceViewportCrop(sequenceFocusHotspot, activeSequence);
-        const destinationOffsetX =
-          getResponsiveSequenceOffsetX(activeSequence) + sequenceViewportCropX;
-        currentOffset = getClosestOffsetForFrame(activeSequence.frame) + destinationOffsetX;
-        targetOffset = currentOffset;
-        applySequenceFrame(activeSequence, sequenceCurrentIndex);
+    function handleViewportResize() {
+      if (viewportResizeRAF) {
+        cancelAnimationFrame(viewportResizeRAF);
       }
 
-      updateHotspots();
-      updateHotspotConnector();
-      updateActiveFrameButton();
-    });
+      viewportResizeRAF = requestAnimationFrame(() => {
+        viewportResizeRAF = null;
+        const normalizedPosition = currentOffset / totalWidth;
+
+        syncPanoFrameWidthCSS();
+
+        currentOffset = normalizedPosition * totalWidth;
+        targetOffset = currentOffset;
+
+        buttonTweenActive = false;
+        buttonTweenZoomActive = false;
+        clearPendingArrivalCallback();
+
+        /*
+          If Safari's visible viewport changes while a sequence is open, retain
+          cover mode and recalculate the exact sequence/panorama alignment.
+        */
+        if (activeSequence) {
+          sequenceCameraZoomed = true;
+          applyPanoFrameSize(getCoverPanoFrameSize());
+          updateSequenceViewportCrop(sequenceFocusHotspot, activeSequence);
+          const destinationOffsetX =
+            getResponsiveSequenceOffsetX(activeSequence, frameWidth) +
+            sequenceViewportCropX;
+          currentOffset =
+            getClosestOffsetForFrame(activeSequence.frame) + destinationOffsetX;
+          targetOffset = currentOffset;
+          applySequenceFrame(activeSequence, sequenceCurrentIndex);
+        }
+
+        updateHotspots();
+        updateHotspotConnector();
+        updateActiveFrameButton();
+      });
+    }
+
+    window.addEventListener("resize", handleViewportResize);
+    window.visualViewport?.addEventListener("resize", handleViewportResize);
 
 
     sequenceLearnMore.addEventListener("click", (event) => {
@@ -5263,8 +5546,14 @@
       */
       sequenceFocusHotspot = hotspot;
       updateSequenceViewportCrop(hotspot, config);
+      const targetFrameSize = isMobileLandscapeSequenceLayout()
+        ? getCoverPanoFrameSize()
+        : null;
       const destinationOffsetX =
-        getResponsiveSequenceOffsetX(config) + sequenceViewportCropX;
+        getResponsiveSequenceOffsetX(
+          config,
+          targetFrameSize?.width || frameWidth
+        ) + sequenceViewportCropX;
 
       moveToFrame(hotspot.frame, async () => {
         try {
@@ -5276,6 +5565,7 @@
           sequenceFocusHotspot = null;
           sequenceViewportCropX = 0;
           showSequenceLoading(false);
+          await animatePanoramaToBrowseLayout(700);
           setFrameButtonsVisible(true);
           setHotspotsVisible(true);
           restoreThumbnailFeatureAfterSequence();
@@ -5293,7 +5583,7 @@
         showSequenceLoading(false);
         forceParallaxNeutral();
         playSequence(config, 1);
-      }, false, destinationOffsetX);
+      }, false, destinationOffsetX, targetFrameSize);
     }
 
     hotspots.forEach((hotspot) => {
