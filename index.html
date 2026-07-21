@@ -1759,7 +1759,7 @@
     }
 
     #sequenceLottieCard.is-neo-lumber #sequenceLearnMore {
-      margin-top: 34px;
+      margin-top: 40px;
     }
 
     @media (hover: none) and (pointer: coarse),
@@ -1769,7 +1769,7 @@
       }
 
       #sequenceLottieCard.is-neo-lumber #sequenceLearnMore {
-        margin-top: 24px;
+        margin-top: 30px;
       }
     }
 
@@ -1780,7 +1780,7 @@
       }
 
       #sequenceLottieCard.is-neo-lumber #sequenceLearnMore {
-        margin-top: 20px;
+        margin-top: 26px;
       }
     }
 
@@ -1790,7 +1790,7 @@
       }
 
       #sequenceLottieCard.is-neo-lumber #sequenceLearnMore {
-        margin-top: 16px;
+        margin-top: 22px;
       }
     }
 
@@ -1974,6 +1974,26 @@
         bottom: 0;
         font-size: 9px;
       }
+
+      /* Keep the pause/play control centered until the hotspot dropdown opens.
+         While the dropdown occupies the top-right, slide pause/play to the
+         matching top-left position so the header feels intentionally balanced. */
+      #panToggleButton {
+        transition:
+          left 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+          background 0.2s ease,
+          transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      body.mobile-hotspot-menu-open #panToggleButton {
+        left: max(10px, env(safe-area-inset-left));
+        transform: none;
+      }
+
+      body.mobile-hotspot-menu-open #panToggleButton:hover,
+      body.mobile-hotspot-menu-open #panToggleButton:focus-visible {
+        transform: scale(1.05);
+      }
     }
 
     @media (hover: none) and (pointer: coarse) and (orientation: landscape),
@@ -2030,6 +2050,10 @@
         width: 112px;
         height: 28px;
         font-size: 8px;
+      }
+
+      body.mobile-hotspot-menu-open #panToggleButton {
+        left: max(8px, env(safe-area-inset-left));
       }
     }
 
@@ -2385,6 +2409,15 @@
     */
     let panoFrameCopies = Array.from({ length: frameCount }, () => []);
     let activeSequence = null;
+    /*
+      Portrait phones see only a narrow horizontal slice of each 16:9 sequence.
+      Store an additional crop that shifts the decoded sequence canvas left so
+      the selected hotspot remains as close to screen centre as full coverage
+      allows. The panorama landing uses the same crop, preventing any jump when
+      frame 00 replaces the panorama.
+    */
+    let sequenceFocusHotspot = null;
+    let sequenceViewportCropX = 0;
     let sequenceCurrentIndex = 0;
     let sequencePlaying = false;
     let sequenceDirection = 1;
@@ -2480,6 +2513,54 @@
 
       return sourceOffsetX * (frameWidth / sourceCanvasWidth);
     }
+
+    function isMobilePortraitSequenceLayout() {
+      const mobileLayout =
+        window.matchMedia("(hover: none) and (pointer: coarse)").matches ||
+        window.innerWidth <= 700;
+      const portraitLayout =
+        window.matchMedia("(orientation: portrait)").matches ||
+        window.innerHeight >= window.innerWidth;
+
+      return mobileLayout && portraitLayout;
+    }
+
+    function getHotspotLocalImageX(hotspot) {
+      if (!hotspot) return frameWidth / 2;
+
+      const responsiveHotspotOffsetX =
+        Number(hotspot.offsetX || 0) * (frameWidth / panoSourceWidth);
+
+      return (Number(hotspot.x || 50) / 100) * frameWidth + responsiveHotspotOffsetX;
+    }
+
+    function getPortraitSequenceViewportCropX(hotspot, config) {
+      if (!isMobilePortraitSequenceLayout() || !hotspot || !config) return 0;
+
+      /*
+        The sequence image begins at config.sourceOffsetX within the panorama
+        (zero for every ordinary sequence and the compensated value for METAL
+        CRAFT). Centre the hotspot inside that sequence coordinate system.
+      */
+      const sequenceSourceStartX = getResponsiveSequenceOffsetX(config);
+      const hotspotXInsideSequence = getHotspotLocalImageX(hotspot) - sequenceSourceStartX;
+      const desiredCropX = hotspotXInsideSequence - window.innerWidth / 2;
+
+      /*
+        A negative crop would expose space to the left of frame 00. A crop
+        larger than frameWidth - viewportWidth would expose space on the right.
+        Clamping to this range keeps the first and every later sequence frame
+        covering the complete visible screen.
+      */
+      const maximumCoveringCropX = Math.max(0, frameWidth - window.innerWidth);
+      return Math.max(0, Math.min(desiredCropX, maximumCoveringCropX));
+    }
+
+    function updateSequenceViewportCrop(hotspot = sequenceFocusHotspot, config = activeSequence) {
+      sequenceViewportCropX = getPortraitSequenceViewportCropX(hotspot, config);
+      return sequenceViewportCropX;
+    }
+
 
     function easeInOutQuint(t) {
       return t < 0.5
@@ -2623,6 +2704,7 @@
     function closeMobileHotspotMenu() {
       frameButtonsWrapper.classList.remove("mobile-open");
       mobileMenuButton.classList.remove("is-open");
+      document.body.classList.remove("mobile-hotspot-menu-open");
       mobileMenuButton.setAttribute("aria-expanded", "false");
       mobileMenuButton.setAttribute("aria-label", "Open hotspot menu");
     }
@@ -4426,6 +4508,7 @@
       const bitmapWidth = Math.max(1, Math.round(cssWidth * pixelRatio));
       const bitmapHeight = Math.max(1, Math.round(cssHeight * pixelRatio));
 
+      sequencePlaybackCanvas.style.left = `${-sequenceViewportCropX}px`;
       sequencePlaybackCanvas.style.top = `${panoStripTop}px`;
       sequencePlaybackCanvas.style.width = `${cssWidth}px`;
       sequencePlaybackCanvas.style.height = `${cssHeight}px`;
@@ -4553,6 +4636,10 @@
       const src = image?.src || config?.frames?.[index];
       if (!src) return;
 
+      sequenceReturnOverlay.style.left = `${-sequenceViewportCropX}px`;
+      sequenceReturnOverlay.style.top = `${panoStripTop}px`;
+      sequenceReturnOverlay.style.width = `${frameWidth}px`;
+      sequenceReturnOverlay.style.height = `${frameHeight}px`;
       sequenceReturnOverlay.style.backgroundImage = `url("${src}")`;
       sequenceReturnOverlay.classList.remove("is-fading");
       sequenceReturnOverlay.classList.add("is-visible");
@@ -4611,6 +4698,8 @@
       releaseSequenceFrameBuffer(finishedSequence);
 
       activeSequence = null;
+      sequenceFocusHotspot = null;
+      sequenceViewportCropX = 0;
       showSequencePlaybackCanvas(false);
       sequenceLottieCard.classList.remove("is-neo-lumber");
       sequenceMenuRevealed = false;
@@ -4801,6 +4890,8 @@
     function startConfiguredSequence(config) {
       if (!config || sequencePlaying) return;
 
+      sequenceFocusHotspot = null;
+      sequenceViewportCropX = 0;
       infoBox.style.display = "none";
       showBackButton(false);
       clearAutoRotateRestart();
@@ -4981,8 +5072,10 @@
         new rendered panorama width.
       */
       if (activeSequence) {
-        const responsiveOffsetX = getResponsiveSequenceOffsetX(activeSequence);
-        currentOffset = getClosestOffsetForFrame(activeSequence.frame) + responsiveOffsetX;
+        updateSequenceViewportCrop(sequenceFocusHotspot, activeSequence);
+        const destinationOffsetX =
+          getResponsiveSequenceOffsetX(activeSequence) + sequenceViewportCropX;
+        currentOffset = getClosestOffsetForFrame(activeSequence.frame) + destinationOffsetX;
         targetOffset = currentOffset;
         applySequenceFrame(activeSequence, sequenceCurrentIndex);
       }
@@ -5142,6 +5235,8 @@
       hideThumbnailFeatureForSequence();
 
       if (!config) {
+        sequenceFocusHotspot = null;
+        sequenceViewportCropX = 0;
         moveToFrame(hotspot.frame, () => {
           document.getElementById("infoTitle").textContent =
             hotspot.text || hotspot.title;
@@ -5161,14 +5256,15 @@
       const assetsPromise = prepareSequenceAssets(config);
 
       /*
-        Use the same responsive source-image offset for the camera landing as
-        applySequenceFrame() uses for the sequence element. Without this, the
-        METAL CRAFT frame is translated right while the camera remains at the
-        ordinary panorama-frame origin, leaving a black strip on the left.
-        The same mismatch also makes frame 00 jump left when the return overlay
-        appears at the end of reverse playback.
+        Match the camera landing to the sequence's source alignment, then add
+        the portrait-only crop that centres the selected hotspot as closely as
+        full-screen coverage allows. The decoded canvas and return overlay use
+        the same crop, so frame 00 cannot jump when playback begins or ends.
       */
-      const responsiveOffsetX = getResponsiveSequenceOffsetX(config);
+      sequenceFocusHotspot = hotspot;
+      updateSequenceViewportCrop(hotspot, config);
+      const destinationOffsetX =
+        getResponsiveSequenceOffsetX(config) + sequenceViewportCropX;
 
       moveToFrame(hotspot.frame, async () => {
         try {
@@ -5177,6 +5273,8 @@
           if (preparationToken !== sequencePreparationToken) return;
 
           sequencePreparing = false;
+          sequenceFocusHotspot = null;
+          sequenceViewportCropX = 0;
           showSequenceLoading(false);
           setFrameButtonsVisible(true);
           setHotspotsVisible(true);
@@ -5195,7 +5293,7 @@
         showSequenceLoading(false);
         forceParallaxNeutral();
         playSequence(config, 1);
-      }, false, responsiveOffsetX);
+      }, false, destinationOffsetX);
     }
 
     hotspots.forEach((hotspot) => {
@@ -5261,6 +5359,7 @@
       const willOpen = !frameButtonsWrapper.classList.contains("mobile-open");
       frameButtonsWrapper.classList.toggle("mobile-open", willOpen);
       mobileMenuButton.classList.toggle("is-open", willOpen);
+      document.body.classList.toggle("mobile-hotspot-menu-open", willOpen);
       mobileMenuButton.setAttribute("aria-expanded", willOpen ? "true" : "false");
       mobileMenuButton.setAttribute("aria-label", willOpen ? "Close hotspot menu" : "Open hotspot menu");
     });
