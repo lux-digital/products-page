@@ -33,6 +33,18 @@
       cursor: grabbing;
     }
 
+    /*
+      On touch devices, reserve vertical swipes for the WordPress page while
+      keeping horizontal swipes available for panorama panning. The browser
+      cancels the viewer pointer gesture when it takes over a vertical scroll.
+    */
+    @media (hover: none) and (pointer: coarse),
+    (max-width: 700px) {
+      #viewer {
+        touch-action: pan-y;
+      }
+    }
+
     #scenePlane {
       position: absolute;
       inset: 0;
@@ -2348,6 +2360,8 @@
     let dragStartX = 0;
     let dragStartY = 0;
     let hasDraggedThisGesture = false;
+    let activeDragPointerType = "";
+    let touchGestureAxis = null;
 
     let pointerX = -9999;
     let pointerY = -9999;
@@ -5287,15 +5301,14 @@
       if (sequencePlaying || activeSequence || sequencePreparing) return;
 
       /*
-        Important fix:
-        Previously, if the pointer started inside the large invisible hotspot
-        hit radius, this handler returned before starting a drag. That made
-        panning feel frozen near hotspots. Now we still remember the possible
-        hotspot click, but we always start the pan gesture. If the user moves
-        more than a few pixels, it becomes a drag and the hotspot click is
-        cancelled.
+        Mouse/pen input begins panorama dragging immediately. Touch input waits
+        until the movement direction is clear so a vertical swipe can scroll the
+        surrounding WordPress page instead of being trapped by the iframe.
       */
       pendingHotspotHit = getNearestHotspotToPointer(event);
+
+      activeDragPointerType = event.pointerType || "mouse";
+      touchGestureAxis = activeDragPointerType === "touch" ? "pending" : "horizontal";
 
       isDragging = true;
       autoRotate = false;
@@ -5312,11 +5325,16 @@
 
       container.classList.add("dragging");
 
-      if (container.setPointerCapture) {
-        container.setPointerCapture(event.pointerId);
+      /*
+        Do not capture or cancel a touch pointer yet. Native vertical scrolling
+        must remain available until the gesture is identified as horizontal.
+      */
+      if (activeDragPointerType !== "touch") {
+        if (container.setPointerCapture) {
+          container.setPointerCapture(event.pointerId);
+        }
+        event.preventDefault();
       }
-
-      event.preventDefault();
     });
 
     container.addEventListener("pointermove", (event) => {
@@ -5324,13 +5342,42 @@
 
       if (!isDragging || sequencePlaying || activeSequence || sequencePreparing) return;
 
+      const totalDeltaX = event.clientX - dragStartX;
+      const totalDeltaY = event.clientY - dragStartY;
+      const totalGestureDistance = Math.hypot(totalDeltaX, totalDeltaY);
+
+      if (activeDragPointerType === "touch" && touchGestureAxis === "pending") {
+        if (totalGestureDistance < 7) return;
+
+        const horizontalDistance = Math.abs(totalDeltaX);
+        const verticalDistance = Math.abs(totalDeltaY);
+
+        if (verticalDistance > horizontalDistance * 1.08) {
+          /*
+            Leave this gesture completely untouched. With touch-action: pan-y,
+            the browser can now scroll the parent WordPress page naturally.
+          */
+          touchGestureAxis = "vertical";
+          pendingHotspotHit = null;
+          isDragging = false;
+          container.classList.remove("dragging");
+          panVelocity = 0;
+          scheduleAutoRotateResume(1000);
+          return;
+        }
+
+        touchGestureAxis = "horizontal";
+        if (container.setPointerCapture) {
+          container.setPointerCapture(event.pointerId);
+        }
+      }
+
+      if (activeDragPointerType === "touch" && touchGestureAxis === "vertical") {
+        return;
+      }
+
       const deltaX = event.clientX - previousMouseX;
       recentThumbnailPanSpeed = Math.max(recentThumbnailPanSpeed, Math.abs(deltaX));
-
-      const totalGestureDistance = Math.hypot(
-        event.clientX - dragStartX,
-        event.clientY - dragStartY
-      );
 
       if (totalGestureDistance > 5) {
         hasDraggedThisGesture = true;
@@ -5349,14 +5396,25 @@
     });
 
     container.addEventListener("pointerup", (event) => {
+      const wasVerticalTouchGesture =
+        activeDragPointerType === "touch" && touchGestureAxis === "vertical";
+      const wasTouchGesture = activeDragPointerType === "touch";
       const hotspotToActivate = pendingHotspotHit;
-      pendingHotspotHit = null;
 
+      pendingHotspotHit = null;
       isDragging = false;
       container.classList.remove("dragging");
 
       if (container.hasPointerCapture && container.hasPointerCapture(event.pointerId)) {
         container.releasePointerCapture(event.pointerId);
+      }
+
+      activeDragPointerType = "";
+      touchGestureAxis = null;
+
+      if (wasVerticalTouchGesture) {
+        scheduleAutoRotateResume(1000);
+        return;
       }
 
       if (hotspotToActivate && !hasDraggedThisGesture && !sequencePlaying && !activeSequence) {
@@ -5369,7 +5427,10 @@
         scheduleAutoRotateResume(1000);
       }
 
-      event.preventDefault();
+      /* A simple touch tap remains clickable without blocking page scrolling. */
+      if (!wasTouchGesture || hasDraggedThisGesture) {
+        event.preventDefault();
+      }
     });
 
     container.addEventListener("pointercancel", (event) => {
@@ -5381,9 +5442,9 @@
         container.releasePointerCapture(event.pointerId);
       }
 
-      if (hasDraggedThisGesture) {
-        scheduleAutoRotateResume(1000);
-      }
+      activeDragPointerType = "";
+      touchGestureAxis = null;
+      scheduleAutoRotateResume(1000);
     });
 
     let viewportResizeRAF = null;
