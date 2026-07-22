@@ -653,19 +653,8 @@
         box-shadow 0.22s ease;
     }
 
-    /* A small edge highlight only—no highlight or smudge across the fill. */
-    #sequenceLearnMore::before {
-      content: "";
-      position: absolute;
-      inset: 1px;
-      border-radius: inherit;
-      border-top: 1px solid rgba(255, 255, 255, 0.30);
-      border-left: 1px solid rgba(255, 255, 255, 0.22);
-      clip-path: inset(0 58% 48% 0 round 999px);
-      opacity: 0.72;
-      pointer-events: none;
-    }
-
+    /* CONTINUE uses a clean fill with no simulated glass-edge highlight. */
+    #sequenceLearnMore::before,
     #sequenceLearnMore::after {
       content: none;
     }
@@ -2393,9 +2382,6 @@
       pans and zooms in one continuous animation.
     */
     let sequenceCameraZoomed = false;
-    /* Prevent panorama-copy wrapping from creating a horizontal jump while the
-       post-sequence camera is performing its zoom-only return. */
-    let panoramaReturnZoomActive = false;
 
     let frameWidth = getPanoFrameSize().width;
     let frameHeight = getPanoFrameSize().height;
@@ -2986,8 +2972,31 @@
 
       syncPanoFrameWidthCSS();
 
-      currentOffset = totalWidth;
-      targetOffset = totalWidth;
+      /*
+        Open with the SOFFIT hotspot aligned to the screen's vertical centre
+        line. The middle panorama copy is used so normal seamless wrapping and
+        automatic movement can continue in either direction from this point.
+      */
+      const startupHotspot = hotspots.find((hotspot) =>
+        normalizeHotspotKey(hotspot.text || hotspot.label || hotspot.title) === "SOFFIT"
+      );
+
+      if (startupHotspot) {
+        const viewport = getVisibleViewportSize();
+        const responsiveOffsetX =
+          Number(startupHotspot.offsetX || 0) * (frameWidth / panoSourceWidth);
+        const startupHotspotWorldX =
+          totalWidth +
+          startupHotspot.frame * frameWidth +
+          (startupHotspot.x / 100) * frameWidth +
+          responsiveOffsetX;
+
+        currentOffset = startupHotspotWorldX - viewport.width / 2;
+        targetOffset = currentOffset;
+      } else {
+        currentOffset = totalWidth;
+        targetOffset = totalWidth;
+      }
 
       updateActiveFrameButton();
     }
@@ -4072,9 +4081,6 @@
     }
 
     function wrapOffsetsIfNeeded() {
-      /* Do not swap repeated panorama copies during the slow return zoom. */
-      if (panoramaReturnZoomActive) return;
-
       if (currentOffset > totalWidth * 2) {
         currentOffset -= totalWidth;
         targetOffset -= totalWidth;
@@ -4740,7 +4746,6 @@
       autoRotate = false;
       panVelocity = 0;
       targetOffset = currentOffset;
-      panoramaReturnZoomActive = true;
 
       return new Promise((resolve) => {
         const step = (now) => {
@@ -4764,18 +4769,7 @@
             applyPanoFrameSize(targetSize);
             currentOffset =
               lockedSourcePointAtViewportCenter * frameWidth - viewport.width / 2;
-
-            /* Normalize only after the zoom is complete. Because the strip is
-               repeated, this changes the internal copy without moving the view. */
-            while (currentOffset > totalWidth * 2) {
-              currentOffset -= totalWidth;
-            }
-            while (currentOffset < totalWidth * 0.5) {
-              currentOffset += totalWidth;
-            }
-
             targetOffset = currentOffset;
-            panoramaReturnZoomActive = false;
             resolve();
           }
         };
