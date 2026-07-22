@@ -2057,6 +2057,27 @@
       }
     }
 
+
+    /* ================================================================
+       FINAL MOBILE CONTROL REMOVAL
+       Phones and touch tablets use only the panorama hotspots and thumbnail
+       control. The product dropdown and automatic-pan pause/play button remain
+       desktop-only. !important is intentional because JavaScript may otherwise
+       restore an inline display value after a sequence closes.
+       ================================================================ */
+    @media (hover: none) and (pointer: coarse),
+    (max-width: 700px),
+    (max-height: 600px) and (orientation: landscape) {
+      #mobileMenuButton,
+      #frameButtons,
+      #panToggleButton {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+    }
+
   </style>
 </head>
 
@@ -2378,9 +2399,13 @@
     let parallaxReturnStartTime = 0;
     let parallaxReturnDuration = 0;
 
-    // Large click radius keeps small hotspots easy to activate.
-    // The overstate radius only brightens the hotspot and no longer changes scale.
+    /*
+      Desktop retains the existing generous proximity activation. Touch devices
+      use a much tighter radius so tapping or starting a drag well away from a
+      hotspot cannot accidentally open it.
+    */
     const hotspotHitRadius = 290;
+    const mobileHotspotHitRadius = 32;
     const hotspotOverstateRadius = 70;
 
     let hoverPauseTarget = 0;
@@ -2815,7 +2840,22 @@
       });
     }
 
-    function getNearestHotspotToPointer(event, radius = hotspotHitRadius) {
+    function getHotspotHitRadiusForPointer(event) {
+      const touchInput = event?.pointerType === "touch";
+      const mobileOrTouchLayout =
+        touchInput ||
+        compactHotspotMenuMediaQuery.matches ||
+        window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+
+      return mobileOrTouchLayout
+        ? mobileHotspotHitRadius
+        : hotspotHitRadius;
+    }
+
+    function getNearestHotspotToPointer(
+      event,
+      radius = getHotspotHitRadiusForPointer(event)
+    ) {
       const x = event.clientX;
       const y = event.clientY;
 
