@@ -2551,15 +2551,45 @@
       return { width, height, top };
     }
 
+    function isViewerEmbedded() {
+      /*
+        The homepage loads this viewer inside an iframe. window.self and
+        window.top can be compared safely without reading any cross-origin data.
+      */
+      try {
+        return window.self !== window.top;
+      } catch (error) {
+        return true;
+      }
+    }
+
+    function shouldFitEmbeddedDesktopHeight() {
+      if (!isViewerEmbedded()) return false;
+
+      const viewport = getVisibleViewportSize();
+      const desktopPointer =
+        window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+      const landscapeViewport = viewport.width > viewport.height;
+
+      /*
+        The homepage iframe is shorter than a normal fullscreen 16:9 window
+        because the website header remains above it. Fit the panorama to the
+        iframe height so both the upper hotspots and bottom controls stay visible.
+      */
+      return desktopPointer && landscapeViewport;
+    }
+
     function getBrowsePanoFrameSize() {
       const viewport = getVisibleViewportSize();
 
-      if (shouldFitMobileLandscapeHeight()) {
+      if (
+        shouldFitMobileLandscapeHeight() ||
+        shouldFitEmbeddedDesktopHeight()
+      ) {
         /*
-          Fit the complete 16:9 artwork to the currently visible Safari height.
-          The panorama strip is continuous, so the extra-wide viewport simply
-          reveals neighbouring panorama content at the sides rather than blank
-          space. Most importantly, no hotspot or title is vertically cropped.
+          Fit the complete 16:9 artwork to the available viewer height. The
+          panorama is a continuous strip, so an extra-wide viewport reveals
+          neighbouring panorama content at the sides instead of empty space.
         */
         return {
           width: viewport.height * panoFrameAspectRatio,
