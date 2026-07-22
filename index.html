@@ -2509,12 +2509,54 @@
 
     let autoRotateRestartTimeout = null;
 
+    function hasTouchViewportInput() {
+      return (
+        window.matchMedia("(hover: none) and (pointer: coarse)").matches ||
+        navigator.maxTouchPoints > 0
+      );
+    }
+
+    function getLayoutViewportSize() {
+      /*
+        Inside an iframe, the iframe's own layout box is the only dependable
+        viewport. Safari and Chrome can change visualViewport while the parent
+        WordPress page scrolls or its browser bars move, even though the iframe
+        itself has not meaningfully changed. Reading that transient value caused
+        the panorama frame dimensions and camera offset to be rebuilt repeatedly.
+      */
+      return {
+        width: Math.max(
+          1,
+          Number(
+            container?.clientWidth ||
+            document.documentElement.clientWidth ||
+            window.innerWidth ||
+            1
+          )
+        ),
+        height: Math.max(
+          1,
+          Number(
+            container?.clientHeight ||
+            document.documentElement.clientHeight ||
+            window.innerHeight ||
+            1
+          )
+        )
+      };
+    }
+
     function getVisibleViewportSize() {
       /*
-        visualViewport is essential on iOS Safari because its height changes
-        when the URL/tab bars are shown or hidden. Fall back to innerWidth and
-        innerHeight everywhere else.
+        Embedded touch viewers must follow the iframe layout viewport, not the
+        browser's moving visual viewport. Standalone mobile Safari still benefits
+        from visualViewport because its visible height genuinely changes when the
+        URL/tab bars open or close.
       */
+      if (isViewerEmbedded() && hasTouchViewportInput()) {
+        return getLayoutViewportSize();
+      }
+
       const viewport = window.visualViewport;
       return {
         width: Math.max(1, Number(viewport?.width || window.innerWidth || 1)),
@@ -5433,6 +5475,7 @@
 
       activeDragPointerType = "";
       touchGestureAxis = null;
+      applyDeferredViewportResize();
 
       if (wasVerticalTouchGesture) {
         scheduleAutoRotateResume(1000);
@@ -5466,18 +5509,43 @@
 
       activeDragPointerType = "";
       touchGestureAxis = null;
+      applyDeferredViewportResize();
       scheduleAutoRotateResume(1000);
     });
 
     let viewportResizeRAF = null;
+    let deferredViewportResize = false;
+    let lastAppliedViewportSize = getVisibleViewportSize();
 
     function handleViewportResize() {
+      /*
+        Never rebuild the panorama geometry in the middle of a horizontal touch
+        drag. Safari can emit resize events while deciding what to do with the
+        gesture. Applying them immediately was the source of occasional frames
+        snapping to unrelated zoom/offset states during panning.
+      */
+      if (
+        isDragging &&
+        activeDragPointerType === "touch" &&
+        touchGestureAxis === "horizontal"
+      ) {
+        deferredViewportResize = true;
+        return;
+      }
+
       if (viewportResizeRAF) {
         cancelAnimationFrame(viewportResizeRAF);
       }
 
       viewportResizeRAF = requestAnimationFrame(() => {
         viewportResizeRAF = null;
+
+        const previousViewport = lastAppliedViewportSize;
+        const nextViewport = getVisibleViewportSize();
+        const widthChanged = Math.abs(nextViewport.width - previousViewport.width) > 0.75;
+        const heightChanged = Math.abs(nextViewport.height - previousViewport.height) > 0.75;
+
+        if (!widthChanged && !heightChanged) return;
 
         /*
           Crossing into or out of the compact dropdown layout must never retain
@@ -5490,20 +5558,30 @@
           compactHotspotMenuLayoutActive = compactHotspotMenuLayoutNow;
         }
 
-        const normalizedPosition = currentOffset / totalWidth;
+        const oldFrameWidth = Math.max(1, frameWidth);
+        const sourcePointAtViewportCenter =
+          (currentOffset + previousViewport.width / 2) / oldFrameWidth;
 
         syncPanoFrameWidthCSS();
 
-        currentOffset = normalizedPosition * totalWidth;
+        /*
+          Preserve the exact panorama source point beneath the centre of the
+          iframe. The former total-strip percentage calculation preserved the
+          left edge instead, so every small mobile-height resize also produced a
+          visible left/right camera jump.
+        */
+        currentOffset =
+          sourcePointAtViewportCenter * frameWidth - nextViewport.width / 2;
         targetOffset = currentOffset;
+        lastAppliedViewportSize = nextViewport;
 
         buttonTweenActive = false;
         buttonTweenZoomActive = false;
         clearPendingArrivalCallback();
 
         /*
-          If Safari's visible viewport changes while a sequence is open, retain
-          cover mode and recalculate the exact sequence/panorama alignment.
+          If a genuine iframe/orientation resize occurs while a sequence is open,
+          retain cover mode and recalculate the exact sequence/panorama alignment.
         */
         if (activeSequence) {
           sequenceCameraZoomed = true;
@@ -5518,14 +5596,38 @@
           applySequenceFrame(activeSequence, sequenceCurrentIndex);
         }
 
+        updatePanorama();
         updateHotspots();
         updateHotspotConnector();
         updateActiveFrameButton();
       });
     }
 
+    function applyDeferredViewportResize() {
+      if (!deferredViewportResize) return;
+      deferredViewportResize = false;
+      handleViewportResize();
+    }
+
     window.addEventListener("resize", handleViewportResize);
-    window.visualViewport?.addEventListener("resize", handleViewportResize);
+
+    /*
+      visualViewport resize is useful when the viewer runs as a standalone page,
+      but must not drive geometry inside an embedded touch iframe. In that case
+      browser-bar movement belongs to the parent page and is not a viewer resize.
+    */
+    if (!(isViewerEmbedded() && hasTouchViewportInput())) {
+      window.visualViewport?.addEventListener("resize", handleViewportResize);
+    }
+
+    window.addEventListener("orientationchange", () => {
+      setTimeout(handleViewportResize, 180);
+    });
+
+    if (window.ResizeObserver) {
+      const viewerResizeObserver = new ResizeObserver(handleViewportResize);
+      viewerResizeObserver.observe(container);
+    }
 
 
     sequenceLearnMore.addEventListener("click", (event) => {
