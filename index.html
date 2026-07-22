@@ -5236,9 +5236,11 @@
       clearAutoRotateRestart();
       clearPendingArrivalCallback();
 
-      const targetFrameSize = isMobileLandscapeSequenceLayout()
-        ? getCoverPanoFrameSize()
-        : null;
+      const targetFrameSize =
+        isMobileLandscapeSequenceLayout() ||
+        shouldFitEmbeddedDesktopHeight()
+          ? getCoverPanoFrameSize()
+          : null;
       const responsiveOffsetX = getResponsiveSequenceOffsetX(
         config,
         targetFrameSize?.width || frameWidth
@@ -5695,9 +5697,11 @@
       */
       sequenceFocusHotspot = hotspot;
       updateSequenceViewportCrop(hotspot, config);
-      const targetFrameSize = isMobileLandscapeSequenceLayout()
-        ? getCoverPanoFrameSize()
-        : null;
+      const targetFrameSize =
+        isMobileLandscapeSequenceLayout() ||
+        shouldFitEmbeddedDesktopHeight()
+          ? getCoverPanoFrameSize()
+          : null;
       const destinationOffsetX =
         getResponsiveSequenceOffsetX(
           config,
