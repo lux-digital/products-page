@@ -2393,6 +2393,9 @@
       pans and zooms in one continuous animation.
     */
     let sequenceCameraZoomed = false;
+    /* Prevent panorama-copy wrapping from creating a horizontal jump while the
+       post-sequence camera is performing its zoom-only return. */
+    let panoramaReturnZoomActive = false;
 
     let frameWidth = getPanoFrameSize().width;
     let frameHeight = getPanoFrameSize().height;
@@ -2417,6 +2420,17 @@
     let buttonTweenEndCameraUnit = 0;
     const buttonTweenDuration = 2400;
     const buttonSettleDelay = 250;
+    /*
+      Preloading still begins immediately, but the loading overlay is not
+      permitted to appear until the camera pan has completely finished and an
+      additional half-second has passed.
+    */
+    const sequenceLoadingDelayAfterPan = 500;
+    /*
+      The mobile-landscape return is intentionally slower than the entry move.
+      It is a zoom-only release back to the browser-safe panorama composition.
+    */
+    const sequenceReturnZoomDuration = 2100;
     let buttonArrivalCallback = null;
     let buttonArrivalTimeout = null;
 
@@ -4058,6 +4072,9 @@
     }
 
     function wrapOffsetsIfNeeded() {
+      /* Do not swap repeated panorama copies during the slow return zoom. */
+      if (panoramaReturnZoomActive) return;
+
       if (currentOffset > totalWidth * 2) {
         currentOffset -= totalWidth;
         targetOffset -= totalWidth;
@@ -4674,28 +4691,24 @@
     }
 
     function prepareSequenceAssets(config) {
+      /*
+        Asset work begins immediately so the camera movement hides as much of
+        the loading time as possible. The overlay itself is scheduled by the
+        hotspot activation only after the pan has finished.
+      */
       if (sequenceLoadingTimer) {
         clearTimeout(sequenceLoadingTimer);
+        sequenceLoadingTimer = null;
       }
-
-      sequenceLoadingTimer = setTimeout(() => {
-        if (sequencePreparing) {
-          showSequenceLoading(true);
-        }
-      }, 220);
+      showSequenceLoading(false);
 
       return Promise.all([
         preloadSequence(config),
         initializeSequenceLottie(config)
-      ]).finally(() => {
-        if (sequenceLoadingTimer) {
-          clearTimeout(sequenceLoadingTimer);
-          sequenceLoadingTimer = null;
-        }
-      });
+      ]);
     }
 
-    function animatePanoramaToBrowseLayout(duration = 950) {
+    function animatePanoramaToBrowseLayout(duration = sequenceReturnZoomDuration) {
       const targetSize = getBrowsePanoFrameSize();
       const sizeAlreadyCorrect =
         Math.abs(targetSize.width - frameWidth) < 0.5 &&
@@ -4713,13 +4726,21 @@
       const startWidth = frameWidth;
       const startHeight = frameHeight;
       const startTop = panoStripTop;
-      const sourcePointAtViewportCenter =
+      /*
+        Lock the exact panorama source point already beneath the middle of the
+        screen. Only the rendered frame size changes; there is no destination
+        frame change and no left/right camera travel after the reverse sequence.
+      */
+      const lockedSourcePointAtViewportCenter =
         (currentOffset + viewport.width / 2) / startWidth;
       const startTime = performance.now();
 
       buttonTweenActive = false;
       buttonTweenZoomActive = false;
+      autoRotate = false;
+      panVelocity = 0;
       targetOffset = currentOffset;
+      panoramaReturnZoomActive = true;
 
       return new Promise((resolve) => {
         const step = (now) => {
@@ -4732,9 +4753,9 @@
             top: startTop + (targetSize.top - startTop) * easedProgress
           });
 
-          /* Hold the same source point beneath the centre of the viewport. */
+          /* Pure zoom: keep the same source point fixed at screen centre. */
           currentOffset =
-            sourcePointAtViewportCenter * frameWidth - viewport.width / 2;
+            lockedSourcePointAtViewportCenter * frameWidth - viewport.width / 2;
           targetOffset = currentOffset;
 
           if (progress < 1) {
@@ -4742,8 +4763,19 @@
           } else {
             applyPanoFrameSize(targetSize);
             currentOffset =
-              sourcePointAtViewportCenter * frameWidth - viewport.width / 2;
+              lockedSourcePointAtViewportCenter * frameWidth - viewport.width / 2;
+
+            /* Normalize only after the zoom is complete. Because the strip is
+               repeated, this changes the internal copy without moving the view. */
+            while (currentOffset > totalWidth * 2) {
+              currentOffset -= totalWidth;
+            }
+            while (currentOffset < totalWidth * 0.5) {
+              currentOffset += totalWidth;
+            }
+
             targetOffset = currentOffset;
+            panoramaReturnZoomActive = false;
             resolve();
           }
         };
@@ -4960,7 +4992,7 @@
         the sequence frame has blended back into the panorama. Hotspots remain
         hidden until the zoom-out is complete, preventing any visible jump.
       */
-      await animatePanoramaToBrowseLayout(950);
+      await animatePanoramaToBrowseLayout(sequenceReturnZoomDuration);
 
       sequenceLottieCard.classList.remove("is-neo-lumber");
       sequenceMenuRevealed = false;
@@ -5536,7 +5568,19 @@
       */
       sequencePreparing = true;
       const preparationToken = ++sequencePreparationToken;
-      const assetsPromise = prepareSequenceAssets(config);
+      let assetsSettled = false;
+      const assetsPromise = prepareSequenceAssets(config).finally(() => {
+        assetsSettled = true;
+
+        if (preparationToken === sequencePreparationToken) {
+          if (sequenceLoadingTimer) {
+            clearTimeout(sequenceLoadingTimer);
+            sequenceLoadingTimer = null;
+          }
+          /* Hide the overlay the instant the sequence is ready. */
+          showSequenceLoading(false);
+        }
+      });
 
       /*
         Match the camera landing to the sequence's source alignment, then add
@@ -5554,6 +5598,22 @@
           config,
           targetFrameSize?.width || frameWidth
         ) + sequenceViewportCropX;
+
+      /*
+        Do not reveal LOADING during the camera move. Only show it if the pan has
+        finished, another 0.5 seconds has elapsed, and the assets are still not
+        ready. Since moveToFrame already includes a small settle pause before its
+        callback, schedule from the tween start for exact pan-end timing.
+      */
+      sequenceLoadingTimer = setTimeout(() => {
+        if (
+          preparationToken === sequencePreparationToken &&
+          sequencePreparing &&
+          !assetsSettled
+        ) {
+          showSequenceLoading(true);
+        }
+      }, buttonTweenDuration + sequenceLoadingDelayAfterPan);
 
       moveToFrame(hotspot.frame, async () => {
         try {
