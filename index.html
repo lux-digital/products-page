@@ -1840,7 +1840,8 @@
     }
 
     @media (hover: none) and (pointer: coarse),
-    (max-width: 700px) {
+    (max-width: 700px),
+    (max-height: 600px) and (orientation: landscape) {
       #mobileMenuButton {
         display: flex;
         right: max(10px, env(safe-area-inset-right));
@@ -2207,6 +2208,10 @@
     const infoBox = document.getElementById("infoBox");
     const panToggleButton = document.getElementById("panToggleButton");
     const mobileMenuButton = document.getElementById("mobileMenuButton");
+    const compactHotspotMenuMediaQuery = window.matchMedia(
+      "(hover: none) and (pointer: coarse), (max-width: 700px), (max-height: 600px) and (orientation: landscape)"
+    );
+    let compactHotspotMenuLayoutActive = compactHotspotMenuMediaQuery.matches;
     const hotspotConnectorLineA = document.getElementById("hotspotConnectorLineA");
     const hotspotConnectorPulseA = document.getElementById("hotspotConnectorPulseA");
     const hotspotConnectorDotA = document.getElementById("hotspotConnectorDotA");
@@ -2801,6 +2806,9 @@
       mobileMenuButton.setAttribute("aria-expanded", "false");
       mobileMenuButton.setAttribute("aria-label", "Open hotspot menu");
     }
+
+    /* Always begin in the closed state, including after browser page restores. */
+    closeMobileHotspotMenu();
 
     function setFrameButtonsVisible(visible) {
       frameButtonsWrapper.classList.toggle("hidden", !visible);
@@ -5357,6 +5365,18 @@
 
       viewportResizeRAF = requestAnimationFrame(() => {
         viewportResizeRAF = null;
+
+        /*
+          Crossing into or out of the compact dropdown layout must never retain
+          an old open state. This prevents a menu opened at one viewport size
+          from reappearing automatically after the browser is resized again.
+        */
+        const compactHotspotMenuLayoutNow = compactHotspotMenuMediaQuery.matches;
+        if (compactHotspotMenuLayoutNow !== compactHotspotMenuLayoutActive) {
+          closeMobileHotspotMenu();
+          compactHotspotMenuLayoutActive = compactHotspotMenuLayoutNow;
+        }
+
         const normalizedPosition = currentOffset / totalWidth;
 
         syncPanoFrameWidthCSS();
