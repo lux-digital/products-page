@@ -2432,10 +2432,11 @@
     */
     const sequenceLoadingDelayAfterPan = 500;
     /*
-      The mobile-landscape return is intentionally slower than the entry move.
-      It is a zoom-only release back to the browser-safe panorama composition.
+      Use the same timing as the hotspot-entry camera move. The return now
+      reverses both the pan and zoom as one continuous camera animation rather
+      than performing a separate centre-locked zoom followed by an offset snap.
     */
-    const sequenceReturnZoomDuration = 2100;
+    const sequenceReturnZoomDuration = buttonTweenDuration;
     let buttonArrivalCallback = null;
     let buttonArrivalTimeout = null;
 
@@ -4766,33 +4767,41 @@
       ]);
     }
 
-    function animatePanoramaToBrowseLayout(duration = sequenceReturnZoomDuration) {
+    function animatePanoramaToBrowseLayout(
+      duration = sequenceReturnZoomDuration,
+      returnFrameIndex = null,
+      destinationOffsetX = 0
+    ) {
       const targetSize = getBrowsePanoFrameSize();
-      const sizeAlreadyCorrect =
-        Math.abs(targetSize.width - frameWidth) < 0.5 &&
-        Math.abs(targetSize.height - frameHeight) < 0.5 &&
-        Math.abs(targetSize.top - panoStripTop) < 0.5;
-
-      sequenceCameraZoomed = false;
-
-      if (sizeAlreadyCorrect) {
-        applyPanoFrameSize(targetSize);
-        return Promise.resolve();
-      }
-
       const viewport = getVisibleViewportSize();
       const startWidth = frameWidth;
       const startHeight = frameHeight;
       const startTop = panoStripTop;
+      const startCameraUnit = currentOffset / startWidth;
+      const hasReturnFrame = Number.isFinite(Number(returnFrameIndex));
+
       /*
-        Lock the exact panorama source point already beneath the middle of the
-        screen. Only the rendered frame size changes; there is no destination
-        frame change and no left/right camera travel after the reverse sequence.
+        Mirror the hotspot-entry move in reverse. The camera position is stored
+        as a frame-relative unit, then that camera unit and the 16:9 render size
+        are eased together. This removes the old centre-locked zoom and the
+        separate horizontal correction that could read as a right/left glitch.
+      */
+      const endCameraUnit = hasReturnFrame
+        ? getClosestCameraUnitForFrame(
+            Number(returnFrameIndex),
+            startCameraUnit
+          ) + Number(destinationOffsetX || 0) / targetSize.width
+        : startCameraUnit;
+
+      /*
+        Retain the old centre lock only for an unexpected call that has no known
+        return frame. Normal sequence returns always provide the matching frame.
       */
       const lockedSourcePointAtViewportCenter =
         (currentOffset + viewport.width / 2) / startWidth;
       const startTime = performance.now();
 
+      sequenceCameraZoomed = false;
       buttonTweenActive = false;
       buttonTweenZoomActive = false;
       autoRotate = false;
@@ -4803,6 +4812,9 @@
         const step = (now) => {
           const progress = Math.min((now - startTime) / duration, 1);
           const easedProgress = easeInOutQuint(progress);
+          const nextCameraUnit =
+            startCameraUnit +
+            (endCameraUnit - startCameraUnit) * easedProgress;
 
           applyPanoFrameSize({
             width: startWidth + (targetSize.width - startWidth) * easedProgress,
@@ -4810,17 +4822,22 @@
             top: startTop + (targetSize.top - startTop) * easedProgress
           });
 
-          /* Pure zoom: keep the same source point fixed at screen centre. */
-          currentOffset =
-            lockedSourcePointAtViewportCenter * frameWidth - viewport.width / 2;
+          if (hasReturnFrame) {
+            /* Pan and zoom as one camera move, exactly like hotspot entry. */
+            currentOffset = nextCameraUnit * frameWidth;
+          } else {
+            currentOffset =
+              lockedSourcePointAtViewportCenter * frameWidth - viewport.width / 2;
+          }
           targetOffset = currentOffset;
 
           if (progress < 1) {
             requestAnimationFrame(step);
           } else {
             applyPanoFrameSize(targetSize);
-            currentOffset =
-              lockedSourcePointAtViewportCenter * frameWidth - viewport.width / 2;
+            currentOffset = hasReturnFrame
+              ? endCameraUnit * frameWidth
+              : lockedSourcePointAtViewportCenter * frameWidth - viewport.width / 2;
             targetOffset = currentOffset;
             resolve();
           }
@@ -5038,7 +5055,10 @@
         the sequence frame has blended back into the panorama. Hotspots remain
         hidden until the zoom-out is complete, preventing any visible jump.
       */
-      await animatePanoramaToBrowseLayout(sequenceReturnZoomDuration);
+      await animatePanoramaToBrowseLayout(
+        sequenceReturnZoomDuration,
+        finishedSequence.frame
+      );
 
       sequenceLottieCard.classList.remove("is-neo-lumber");
       sequenceMenuRevealed = false;
@@ -5734,7 +5754,7 @@
           sequenceFocusHotspot = null;
           sequenceViewportCropX = 0;
           showSequenceLoading(false);
-          await animatePanoramaToBrowseLayout(700);
+          await animatePanoramaToBrowseLayout(700, config.frame);
           setFrameButtonsVisible(true);
           setHotspotsVisible(true);
           restoreThumbnailFeatureAfterSequence();
