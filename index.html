@@ -5221,14 +5221,27 @@
       showSequencePlaybackCanvas(false);
 
       /*
-        Return mobile landscape to its full-height browsing composition after
-        the sequence frame has blended back into the panorama. Hotspots remain
-        hidden until the zoom-out is complete, preventing any visible jump.
+        Mobile portrait entered the sequence with the camera centred on the
+        hotspot rather than on the panorama frame origin. Frame 00 already
+        blends back into the panorama at that exact hotspot-centred offset, so
+        do not start another left/right camera move after the reverse finishes.
+
+        Landscape and desktop still need their existing return animation to
+        restore the normal browsing frame size and alignment.
       */
-      await animatePanoramaToBrowseLayout(
-        sequenceReturnZoomDuration,
-        finishedSequence.frame
-      );
+      if (isMobilePortraitSequenceLayout()) {
+        sequenceCameraZoomed = false;
+        buttonTweenActive = false;
+        buttonTweenZoomActive = false;
+        autoRotate = false;
+        panVelocity = 0;
+        targetOffset = currentOffset;
+      } else {
+        await animatePanoramaToBrowseLayout(
+          sequenceReturnZoomDuration,
+          finishedSequence.frame
+        );
+      }
 
       sequenceLottieCard.classList.remove("is-neo-lumber");
       sequenceMenuRevealed = false;
