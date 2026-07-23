@@ -2415,6 +2415,8 @@
     const cameraEase = 0.075;
     const dragFriction = 0.94;
     const dragSensitivity = 1.0;
+    /* Touch swipes travel farther than mouse drags without changing desktop feel. */
+    const touchDragSensitivity = 1.45;
     const autoRotateSpeed = 0.5;
     const autoRotateResumeDelay = 1500;
 
@@ -5582,15 +5584,24 @@
       }
 
       const deltaX = event.clientX - previousMouseX;
-      recentThumbnailPanSpeed = Math.max(recentThumbnailPanSpeed, Math.abs(deltaX));
+      const activeDragSensitivity =
+        activeDragPointerType === "touch"
+          ? touchDragSensitivity
+          : dragSensitivity;
+      const sensitiveDeltaX = deltaX * activeDragSensitivity;
+
+      recentThumbnailPanSpeed = Math.max(
+        recentThumbnailPanSpeed,
+        Math.abs(sensitiveDeltaX)
+      );
 
       if (totalGestureDistance > 5) {
         hasDraggedThisGesture = true;
         pendingHotspotHit = null;
       }
 
-      targetOffset -= deltaX * dragSensitivity;
-      panVelocity = -deltaX * dragSensitivity * 0.18;
+      targetOffset -= sensitiveDeltaX;
+      panVelocity = -sensitiveDeltaX * 0.18;
 
       if (Math.abs(deltaX) > 0.01) {
         autoRotateDirection = deltaX < 0 ? 1 : -1;
