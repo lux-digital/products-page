@@ -2449,6 +2449,8 @@
     let buttonTweenStartCameraUnit = 0;
     let buttonTweenEndCameraUnit = 0;
     const buttonTweenDuration = 2400;
+    let buttonTweenCurrentDuration = buttonTweenDuration;
+    const cameraMotionEpsilon = 0.75;
     const buttonSettleDelay = 250;
     /*
       Preloading still begins immediately, but the loading overlay is not
@@ -3403,18 +3405,77 @@
           getClosestOffsetForFrame(frameIndex) + Number(destinationOffsetX || 0);
       }
 
-      if (returnPlaneToNeutral) {
-        beginParallaxReturn(buttonTweenDuration);
-      }
+      const panDistance = buttonTweenZoomActive
+        ? Math.abs(buttonTweenEndCameraUnit - buttonTweenStartCameraUnit) *
+          Math.max(buttonTweenStartFrameWidth, buttonTweenEndFrameWidth)
+        : Math.abs(buttonTweenEndOffset - buttonTweenStartOffset);
+      const zoomDistance = buttonTweenZoomActive
+        ? Math.max(
+            Math.abs(buttonTweenEndFrameWidth - buttonTweenStartFrameWidth),
+            Math.abs(buttonTweenEndFrameHeight - buttonTweenStartFrameHeight),
+            Math.abs(buttonTweenEndFrameTop - buttonTweenStartFrameTop)
+          )
+        : 0;
+      const hasVisibleCameraMovement =
+        panDistance > cameraMotionEpsilon ||
+        zoomDistance > cameraMotionEpsilon;
 
       setActiveFrameButton(frameIndex);
+
+      /*
+        Do not run an invisible 2.4-second tween. When the panorama is already
+        at the sequence's exact camera position and size, commit the destination
+        immediately and continue on the next task. This removes the frozen pause
+        before forward playback and after reverse playback.
+      */
+      if (!hasVisibleCameraMovement) {
+        if (buttonTweenZoomActive) {
+          applyPanoFrameSize({
+            width: buttonTweenEndFrameWidth,
+            height: buttonTweenEndFrameHeight,
+            top: buttonTweenEndFrameTop
+          });
+          currentOffset = buttonTweenEndCameraUnit * frameWidth;
+          buttonTweenEndOffset = currentOffset;
+        } else {
+          currentOffset = buttonTweenEndOffset;
+        }
+
+        targetOffset = currentOffset;
+        buttonTweenActive = false;
+        buttonTweenZoomActive = false;
+        buttonTweenCurrentDuration = 0;
+
+        if (returnPlaneToNeutral) {
+          forceParallaxNeutral();
+        }
+
+        if (buttonArrivalCallback) {
+          const callback = buttonArrivalCallback;
+          buttonArrivalCallback = null;
+          buttonArrivalTimeout = setTimeout(() => {
+            buttonArrivalTimeout = null;
+            callback();
+          }, 0);
+        }
+
+        return 0;
+      }
+
+      buttonTweenCurrentDuration = buttonTweenDuration;
+
+      if (returnPlaneToNeutral) {
+        beginParallaxReturn(buttonTweenCurrentDuration);
+      }
+
+      return buttonTweenCurrentDuration;
     }
 
     function updateButtonTween() {
       if (!buttonTweenActive) return;
 
       const elapsed = performance.now() - buttonTweenStartTime;
-      const progress = Math.min(elapsed / buttonTweenDuration, 1);
+      const progress = Math.min(elapsed / buttonTweenCurrentDuration, 1);
       const easedProgress = easeInOutQuint(progress);
 
       if (buttonTweenZoomActive) {
@@ -4881,7 +4942,18 @@
       */
       const lockedSourcePointAtViewportCenter =
         (currentOffset + viewport.width / 2) / startWidth;
-      const startTime = performance.now();
+      const panDistance = hasReturnFrame
+        ? Math.abs(endCameraUnit - startCameraUnit) *
+          Math.max(startWidth, targetSize.width)
+        : 0;
+      const zoomDistance = Math.max(
+        Math.abs(targetSize.width - startWidth),
+        Math.abs(targetSize.height - startHeight),
+        Math.abs(targetSize.top - startTop)
+      );
+      const hasVisibleCameraMovement =
+        panDistance > cameraMotionEpsilon ||
+        zoomDistance > cameraMotionEpsilon;
 
       sequenceCameraZoomed = false;
       buttonTweenActive = false;
@@ -4889,6 +4961,22 @@
       autoRotate = false;
       panVelocity = 0;
       targetOffset = currentOffset;
+
+      /*
+        If reverse playback already ends at the normal browsing camera, there is
+        nothing to animate. Restore the controls immediately instead of waiting
+        through the normal camera-transition duration with a frozen image.
+      */
+      if (!hasVisibleCameraMovement) {
+        applyPanoFrameSize(targetSize);
+        currentOffset = hasReturnFrame
+          ? endCameraUnit * frameWidth
+          : lockedSourcePointAtViewportCenter * frameWidth - viewport.width / 2;
+        targetOffset = currentOffset;
+        return Promise.resolve();
+      }
+
+      const startTime = performance.now();
 
       return new Promise((resolve) => {
         const step = (now) => {
@@ -5871,22 +5959,10 @@
         ) + sequenceViewportCropX;
 
       /*
-        Do not reveal LOADING during the camera move. Only show it if the pan has
-        finished, another 0.5 seconds has elapsed, and the assets are still not
-        ready. Since moveToFrame already includes a small settle pause before its
-        callback, schedule from the tween start for exact pan-end timing.
+        Start the camera move first so its actual duration is known. A move that
+        has no visible pan or zoom now returns zero and proceeds immediately.
       */
-      sequenceLoadingTimer = setTimeout(() => {
-        if (
-          preparationToken === sequencePreparationToken &&
-          sequencePreparing &&
-          !assetsSettled
-        ) {
-          showSequenceLoading(true);
-        }
-      }, buttonTweenDuration + sequenceLoadingDelayAfterPan);
-
-      moveToFrame(hotspot.frame, async () => {
+      const cameraMoveDuration = moveToFrame(hotspot.frame, async () => {
         try {
           await assetsPromise;
         } catch (error) {
@@ -5915,6 +5991,21 @@
         forceParallaxNeutral();
         playSequence(config, 1);
       }, false, destinationOffsetX, targetFrameSize);
+
+      /*
+        Do not reveal LOADING during a real camera move. If no move was needed,
+        the normal half-second loading grace period begins immediately instead
+        of inheriting the old fixed 2.4-second delay.
+      */
+      sequenceLoadingTimer = setTimeout(() => {
+        if (
+          preparationToken === sequencePreparationToken &&
+          sequencePreparing &&
+          !assetsSettled
+        ) {
+          showSequenceLoading(true);
+        }
+      }, cameraMoveDuration + sequenceLoadingDelayAfterPan);
     }
 
     hotspots.forEach((hotspot) => {
