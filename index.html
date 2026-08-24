@@ -2356,10 +2356,13 @@
     */
     // Direct scroll-linked movement: no easing or residual motion after scrolling stops.
     // The maximum stays just inside the 194px sky strip.
-    const scrollParallaxStrength = 0.55;
-    const scrollParallaxMaxSourceY = 188;
+    const scrollParallaxStrength = 0.18;
+    const scrollParallaxMaxSourceY = 110;
     let scrollParallaxY = 0;
     let parentScrollParallaxLinked = false;
+    let parentScrollParallaxWindow = null;
+    let parentScrollParallaxStartY = 0;
+    let parentScrollParallaxStartOffsetY = 0;
     let touchScrollParallaxLastY = null;
 
     /*
@@ -3746,30 +3749,13 @@
       syncPanoFrameWidthCSS();
 
       /*
-        Open with the SOFFIT hotspot aligned to the screen's vertical centre
-        line. The middle panorama copy is used so normal seamless wrapping and
-        automatic movement can continue in either direction from this point.
+        Always open on frame0000, centered in the viewport. The middle panorama
+        copy is used so seamless wrapping and normal left/right movement can
+        continue in either direction immediately after load.
       */
-      const startupHotspot = hotspots.find((hotspot) =>
-        normalizeHotspotKey(hotspot.text || hotspot.label || hotspot.title) === "SOFFIT"
-      );
-
-      if (startupHotspot) {
-        const viewport = getVisibleViewportSize();
-        const responsiveOffsetX =
-          Number(startupHotspot.offsetX || 0) * (frameWidth / panoSourceWidth);
-        const startupHotspotWorldX =
-          totalWidth +
-          startupHotspot.frame * frameWidth +
-          (startupHotspot.x / 100) * frameWidth +
-          responsiveOffsetX;
-
-        currentOffset = startupHotspotWorldX - viewport.width / 2;
-        targetOffset = currentOffset;
-      } else {
-        currentOffset = totalWidth;
-        targetOffset = totalWidth;
-      }
+      const viewport = getVisibleViewportSize();
+      currentOffset = totalWidth + frameWidth / 2 - viewport.width / 2;
+      targetOffset = currentOffset;
 
       updateActiveFrameButton();
     }
@@ -4197,6 +4183,28 @@
       return isMainPanoramaPage() ? scrollParallaxY : 0;
     }
 
+    function syncParentScrollParallax() {
+      if (!parentScrollParallaxLinked || !parentScrollParallaxWindow) return;
+
+      const currentParentScrollY = Number(
+        parentScrollParallaxWindow.scrollY ||
+        parentScrollParallaxWindow.pageYOffset ||
+        0
+      );
+      const scrollDelta = currentParentScrollY - parentScrollParallaxStartY;
+
+      /*
+        Sample the parent's ACTUAL scroll position once per animation frame.
+        This avoids the visible stepping that can happen when transform updates
+        are driven only by discrete scroll events. There is still no easing,
+        spring, or residual animation: the panorama simply mirrors the page's
+        current position on that frame.
+      */
+      scrollParallaxY = clampScrollParallaxTarget(
+        parentScrollParallaxStartOffsetY + scrollDelta * scrollParallaxStrength
+      );
+    }
+
     function tryLinkParentScrollParallax() {
       if (!isViewerEmbedded()) return false;
 
@@ -4209,30 +4217,16 @@
         */
         void parentWindow.document.documentElement;
 
-        const initialParentScrollY = Number(
+        parentScrollParallaxWindow = parentWindow;
+        parentScrollParallaxStartY = Number(
           parentWindow.scrollY || parentWindow.pageYOffset || 0
         );
-        const initialParallaxY = scrollParallaxY;
-
-        const syncFromParentScroll = () => {
-          const currentParentScrollY = Number(
-            parentWindow.scrollY || parentWindow.pageYOffset || 0
-          );
-          const scrollDelta = currentParentScrollY - initialParentScrollY;
-
-          // Follow the parent's real scroll position immediately, with no easing.
-          scrollParallaxY = clampScrollParallaxTarget(
-            initialParallaxY + scrollDelta * scrollParallaxStrength
-          );
-        };
-
-        parentWindow.addEventListener("scroll", syncFromParentScroll, {
-          passive: true
-        });
+        parentScrollParallaxStartOffsetY = scrollParallaxY;
         parentScrollParallaxLinked = true;
-        syncFromParentScroll();
+        syncParentScrollParallax();
         return true;
       } catch (error) {
+        parentScrollParallaxWindow = null;
         parentScrollParallaxLinked = false;
         return false;
       }
@@ -6210,6 +6204,7 @@
         }
       }
 
+      syncParentScrollParallax();
       updatePanorama();
       updateSky();
       updateReflection();
