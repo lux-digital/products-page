@@ -2347,17 +2347,18 @@
       The Elementor page itself scrolls outside this viewer. When same-origin
       parent access is available we follow the parent scroll position directly.
       For cross-origin embeds, passive wheel/touch tracking inside the iframe
-      provides the same effect without blocking the website's normal scrolling.
+      mirrors each scroll delta immediately without blocking the website's normal
+      scrolling. No easing is used, so movement stops the instant scrolling stops.
 
       Only frame0000-frame0002 and their hotspot/mask positions move vertically.
       The sky and foreground canvas stay screen-fixed, creating the requested
       layered depth.
     */
-    const scrollParallaxStrength = 0.18;
-    const scrollParallaxMaxSourceY = 140;
-    const scrollParallaxEase = 0.12;
+    // Direct scroll-linked movement: no easing or residual motion after scrolling stops.
+    // The maximum stays just inside the 194px sky strip.
+    const scrollParallaxStrength = 0.55;
+    const scrollParallaxMaxSourceY = 188;
     let scrollParallaxY = 0;
-    let scrollParallaxTargetY = 0;
     let parentScrollParallaxLinked = false;
     let touchScrollParallaxLastY = null;
 
@@ -2369,7 +2370,7 @@
         still foreground artwork.
       - 180/FRONT/FRONT 01/WATER00.png through WATER33.png are now only the
         small animated crop. The supplied 1920 x 1080 placement reference anchors
-        that 727 x 193 crop at x=263, y=807.
+        that 727 x 193 crop at x=274, y=807 (11px farther right).
       - Drawing the still once per foreground tile and only replacing that small
         rectangle keeps the exact old visual layout while loading far less data.
 
@@ -2397,7 +2398,7 @@
     const waterForegroundImageSource = "Water front.png";
     const waterSequenceSourceX = 263;
     const waterSequenceSourceY = 807;
-    const waterSequenceSourceWidth = 727;
+    const waterSequenceSourceWidth = 738;
     const waterSequenceSourceHeight = 193;
 
     const fireForegroundFrameIndex = 1;
@@ -2435,18 +2436,6 @@
     */
     const panoSourceWidth = 1920;
     const panoSourceHeight = 1080;
-
-    /*
-      Shift the main frame0000-frame0002 panorama artwork 11 source pixels
-      to the right. Scale the adjustment with the rendered 1920px artwork so
-      the alignment remains identical on responsive layouts. Foreground layers
-      keep their existing screen position.
-    */
-    const mainPanoramaSourceOffsetX = 11;
-
-    function getMainPanoramaOffsetX() {
-      return mainPanoramaSourceOffsetX * (frameWidth / panoSourceWidth);
-    }
 
     const frames = [
       `${frameFolder}/frame0000.jpg`,
@@ -3657,7 +3646,7 @@
           const frameWorldX =
             repeat * totalWidth + config.frameIndex * frameWidth;
           const screenX =
-            frameWorldX - currentOffset + getMainPanoramaOffsetX();
+            frameWorldX - currentOffset;
 
           if (screenX >= viewport.width || screenX + frameWidth <= 0) continue;
 
@@ -4186,29 +4175,23 @@
     }
 
     function nudgeScrollParallax(deltaY) {
-      if (!Number.isFinite(deltaY) || !deltaY) return;
-      scrollParallaxTargetY = clampScrollParallaxTarget(
-        scrollParallaxTargetY + deltaY * scrollParallaxStrength
+      if (!Number.isFinite(deltaY) || !deltaY || !isMainPanoramaPage()) return;
+
+      /*
+        Apply the scroll delta immediately. There is intentionally no target,
+        interpolation, easing, spring, or momentum here: when scroll events stop,
+        the vertical panorama movement stops on that exact frame.
+      */
+      scrollParallaxY = clampScrollParallaxTarget(
+        scrollParallaxY + deltaY * scrollParallaxStrength
       );
-    }
-
-    function updateScrollParallax() {
-      const desiredY = isMainPanoramaPage()
-        ? clampScrollParallaxTarget(scrollParallaxTargetY)
-        : 0;
-
-      scrollParallaxY += (desiredY - scrollParallaxY) * scrollParallaxEase;
-
-      if (Math.abs(desiredY - scrollParallaxY) < 0.02) {
-        scrollParallaxY = desiredY;
-      }
     }
 
     function getActiveScrollParallaxY() {
       /*
         Sequence frames are full-screen 1920 x 1080 artwork, so return the main
         panorama to its exact zero-Y alignment while a sequence is preparing or
-        playing. The requested page-scroll offset is retained and eases back in
+        playing. The current page-scroll offset is retained and restored directly
         after returning to the main panorama.
       */
       return isMainPanoramaPage() ? scrollParallaxY : 0;
@@ -4229,7 +4212,7 @@
         const initialParentScrollY = Number(
           parentWindow.scrollY || parentWindow.pageYOffset || 0
         );
-        const initialParallaxTargetY = scrollParallaxTargetY;
+        const initialParallaxY = scrollParallaxY;
 
         const syncFromParentScroll = () => {
           const currentParentScrollY = Number(
@@ -4237,8 +4220,9 @@
           );
           const scrollDelta = currentParentScrollY - initialParentScrollY;
 
-          scrollParallaxTargetY = clampScrollParallaxTarget(
-            initialParallaxTargetY + scrollDelta * scrollParallaxStrength
+          // Follow the parent's real scroll position immediately, with no easing.
+          scrollParallaxY = clampScrollParallaxTarget(
+            initialParallaxY + scrollDelta * scrollParallaxStrength
           );
         };
 
@@ -4263,7 +4247,7 @@
 
       const activeScrollParallaxY = getActiveScrollParallaxY();
       panoramaStrip.style.transform =
-        `translate3d(${-currentOffset + getMainPanoramaOffsetX()}px, ${activeScrollParallaxY}px, 0)`;
+        `translate3d(${-currentOffset}px, ${activeScrollParallaxY}px, 0)`;
     }
 
     function updateSky() {
@@ -4322,7 +4306,7 @@
         for (let repeat = 0; repeat < 3; repeat++) {
           const worldX = hotspotBaseX + repeat * totalWidth;
           const screenX =
-            worldX - currentOffset + getMainPanoramaOffsetX();
+            worldX - currentOffset;
           const distance = Math.abs(screenX - viewport.width / 2);
 
           if (distance < bestDistance) {
@@ -6226,7 +6210,6 @@
         }
       }
 
-      updateScrollParallax();
       updatePanorama();
       updateSky();
       updateReflection();
@@ -6510,7 +6493,6 @@
           sourcePointAtViewportCenter * frameWidth - nextViewport.width / 2;
         targetOffset = currentOffset;
         lastAppliedViewportSize = nextViewport;
-        scrollParallaxTargetY = clampScrollParallaxTarget(scrollParallaxTargetY);
         scrollParallaxY = clampScrollParallaxTarget(scrollParallaxY);
 
         buttonTweenActive = false;
