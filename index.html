@@ -2344,26 +2344,30 @@
     /*
       Vertical page-scroll parallax.
 
-      The Elementor page itself scrolls outside this viewer. When same-origin
-      parent access is available we follow the parent scroll position directly.
-      For cross-origin embeds, passive wheel/touch tracking inside the iframe
-      mirrors each scroll delta immediately without blocking the website's normal
-      scrolling. No easing is used, so movement stops the instant scrolling stops.
+      This must follow the Elementor PAGE position, not wheel input inside the
+      iframe. Same-origin embeds can read their own frameElement position directly.
+      Cross-origin embeds receive that position from the tiny parent-page bridge
+      via postMessage (see the supplied Elementor snippet).
+
+      There is no easing, spring, momentum, or delayed catch-up. The panorama Y
+      offset is derived from the page position itself, so it stops on the same
+      visual frame as the page and stays correct even when the mouse is outside
+      the panorama.
 
       Only frame0000-frame0002 and their hotspot/mask positions move vertically.
       The sky and foreground canvas stay screen-fixed, creating the requested
       layered depth.
     */
-    // Direct scroll-linked movement: no easing or residual motion after scrolling stops.
-    // The maximum stays just inside the 194px sky strip.
-    const scrollParallaxStrength = 0.18;
-    const scrollParallaxMaxSourceY = 110;
+    const scrollParallaxStrength = 0.10;
+    const scrollParallaxMaxSourceY = 72;
     let scrollParallaxY = 0;
     let parentScrollParallaxLinked = false;
     let parentScrollParallaxWindow = null;
-    let parentScrollParallaxStartY = 0;
-    let parentScrollParallaxStartOffsetY = 0;
-    let touchScrollParallaxLastY = null;
+    let parentScrollParallaxFrameElement = null;
+    let parentScrollParallaxStartFrameTop = null;
+    let externalParentFrameTop = null;
+    let externalParentStartFrameTop = null;
+    let externalParentScrollBridgeLinked = false;
 
     /*
       Animated foreground parallax layers.
@@ -4160,19 +4164,6 @@
       return Math.max(0, Math.min(Number(value || 0), getScrollParallaxMaxY()));
     }
 
-    function nudgeScrollParallax(deltaY) {
-      if (!Number.isFinite(deltaY) || !deltaY || !isMainPanoramaPage()) return;
-
-      /*
-        Apply the scroll delta immediately. There is intentionally no target,
-        interpolation, easing, spring, or momentum here: when scroll events stop,
-        the vertical panorama movement stops on that exact frame.
-      */
-      scrollParallaxY = clampScrollParallaxTarget(
-        scrollParallaxY + deltaY * scrollParallaxStrength
-      );
-    }
-
     function getActiveScrollParallaxY() {
       /*
         Sequence frames are full-screen 1920 x 1080 artwork, so return the main
@@ -4183,26 +4174,62 @@
       return isMainPanoramaPage() ? scrollParallaxY : 0;
     }
 
-    function syncParentScrollParallax() {
-      if (!parentScrollParallaxLinked || !parentScrollParallaxWindow) return;
-
-      const currentParentScrollY = Number(
-        parentScrollParallaxWindow.scrollY ||
-        parentScrollParallaxWindow.pageYOffset ||
-        0
-      );
-      const scrollDelta = currentParentScrollY - parentScrollParallaxStartY;
+    function applyScrollParallaxFromFrameTop(frameTop, startFrameTop) {
+      if (!Number.isFinite(frameTop) || !Number.isFinite(startFrameTop)) return;
 
       /*
-        Sample the parent's ACTUAL scroll position once per animation frame.
-        This avoids the visible stepping that can happen when transform updates
-        are driven only by discrete scroll events. There is still no easing,
-        spring, or residual animation: the panorama simply mirrors the page's
-        current position on that frame.
+        Scrolling down moves the iframe upward in the parent viewport, so
+        startFrameTop - frameTop becomes positive. Derive the panorama offset
+        directly from that real movement. No accumulation means no drift.
       */
+      const pageTravel = startFrameTop - frameTop;
       scrollParallaxY = clampScrollParallaxTarget(
-        parentScrollParallaxStartOffsetY + scrollDelta * scrollParallaxStrength
+        pageTravel * scrollParallaxStrength
       );
+    }
+
+    function syncParentScrollParallax() {
+      if (!isMainPanoramaPage()) return;
+
+      /*
+        Same-origin path: read the iframe element's actual position in the parent
+        viewport on every animation frame. This is perfectly tied to page motion.
+      */
+      if (
+        parentScrollParallaxLinked &&
+        parentScrollParallaxFrameElement &&
+        typeof parentScrollParallaxFrameElement.getBoundingClientRect === "function"
+      ) {
+        const frameTop = Number(
+          parentScrollParallaxFrameElement.getBoundingClientRect().top
+        );
+
+        if (parentScrollParallaxStartFrameTop === null) {
+          parentScrollParallaxStartFrameTop = frameTop;
+        }
+
+        applyScrollParallaxFromFrameTop(
+          frameTop,
+          parentScrollParallaxStartFrameTop
+        );
+        return;
+      }
+
+      /*
+        Cross-origin path: Elementor supplies the iframe's real viewport position
+        through postMessage. Because this is an absolute position rather than a
+        wheel delta, it cannot get out of sync when the mouse leaves the iframe.
+      */
+      if (
+        externalParentScrollBridgeLinked &&
+        Number.isFinite(externalParentFrameTop) &&
+        Number.isFinite(externalParentStartFrameTop)
+      ) {
+        applyScrollParallaxFromFrameTop(
+          externalParentFrameTop,
+          externalParentStartFrameTop
+        );
+      }
     }
 
     function tryLinkParentScrollParallax() {
@@ -4210,27 +4237,52 @@
 
       try {
         const parentWindow = window.parent;
-        /*
-          Reading parent.document intentionally tests same-origin access.
-          Cross-origin Elementor/GitHub embeds throw here and use wheel/touch
-          tracking below instead.
-        */
+        /* Reading parent.document intentionally tests same-origin access. */
         void parentWindow.document.documentElement;
 
+        const frameElement = window.frameElement;
+        if (!frameElement) return false;
+
         parentScrollParallaxWindow = parentWindow;
-        parentScrollParallaxStartY = Number(
-          parentWindow.scrollY || parentWindow.pageYOffset || 0
+        parentScrollParallaxFrameElement = frameElement;
+        parentScrollParallaxStartFrameTop = Number(
+          frameElement.getBoundingClientRect().top
         );
-        parentScrollParallaxStartOffsetY = scrollParallaxY;
         parentScrollParallaxLinked = true;
         syncParentScrollParallax();
         return true;
       } catch (error) {
         parentScrollParallaxWindow = null;
+        parentScrollParallaxFrameElement = null;
+        parentScrollParallaxStartFrameTop = null;
         parentScrollParallaxLinked = false;
         return false;
       }
     }
+
+    /*
+      Cross-origin Elementor bridge. The parent page sends the iframe's current
+      getBoundingClientRect().top value. Only messages from this iframe's actual
+      parent window are accepted.
+    */
+    window.addEventListener("message", (event) => {
+      if (event.source !== window.parent) return;
+
+      const data = event.data;
+      if (!data || data.type !== "LUX_PANORAMA_PAGE_POSITION") return;
+
+      const frameTop = Number(data.frameTop);
+      if (!Number.isFinite(frameTop)) return;
+
+      externalParentFrameTop = frameTop;
+      if (externalParentStartFrameTop === null) {
+        externalParentStartFrameTop = frameTop;
+      }
+      externalParentScrollBridgeLinked = true;
+
+      /* Apply immediately; the normal animation loop also reuses this value. */
+      syncParentScrollParallax();
+    });
 
     function updatePanorama() {
       if (buttonTweenActive) {
@@ -6217,43 +6269,24 @@
     }
 
     /*
-      Cross-origin fallback: wheel and one-finger vertical swipes are observed
-      passively, so Elementor/WordPress keeps complete control of page scrolling.
-      We only mirror that motion into the background parallax amount.
+      Do NOT fall back to wheel/touch deltas here. A cross-origin iframe cannot
+      know about scrolling that starts elsewhere on the parent page, so delta
+      tracking inevitably drifts. Without the parent bridge the vertical effect
+      simply stays neutral instead of becoming misaligned.
     */
-    window.addEventListener("wheel", (event) => {
-      if (parentScrollParallaxLinked || !isMainPanoramaPage()) return;
-      nudgeScrollParallax(Number(event.deltaY || 0));
-    }, { passive: true });
-
-    window.addEventListener("touchstart", (event) => {
-      if (parentScrollParallaxLinked || !event.touches?.length) return;
-      touchScrollParallaxLastY = event.touches[0].clientY;
-    }, { passive: true });
-
-    window.addEventListener("touchmove", (event) => {
-      if (
-        parentScrollParallaxLinked ||
-        touchScrollParallaxLastY === null ||
-        !event.touches?.length ||
-        !isMainPanoramaPage()
-      ) {
-        return;
-      }
-
-      const currentTouchY = event.touches[0].clientY;
-      const scrollLikeDeltaY = touchScrollParallaxLastY - currentTouchY;
-      touchScrollParallaxLastY = currentTouchY;
-      nudgeScrollParallax(scrollLikeDeltaY);
-    }, { passive: true });
-
-    const clearTouchScrollParallax = () => {
-      touchScrollParallaxLastY = null;
-    };
-    window.addEventListener("touchend", clearTouchScrollParallax, { passive: true });
-    window.addEventListener("touchcancel", clearTouchScrollParallax, { passive: true });
 
     tryLinkParentScrollParallax();
+
+    if (isViewerEmbedded() && !parentScrollParallaxLinked) {
+      /*
+        Harmless discovery ping for pages that choose to register bridge-aware
+        iframes. The supplied Elementor bridge also works without this ping.
+      */
+      window.parent.postMessage(
+        { type: "LUX_PANORAMA_SCROLL_BRIDGE_REQUEST" },
+        "*"
+      );
+    }
 
     container.addEventListener("pointerenter", (event) => {
       updatePointerPosition(event);
