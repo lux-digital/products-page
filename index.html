@@ -7,6 +7,12 @@
   <title>Panorama Viewer</title>
 
   <style>
+    /* TEMPORARY: hide the bottom frame navigation buttons.
+       Remove this rule to bring them back later. */
+    #frameButtons {
+      display: none !important;
+    }
+
     html,
     body {
       margin: 0;
@@ -58,6 +64,28 @@
       pointer-events: auto;
     }
 
+    /*
+      sky.jpg sits behind the three main panorama frames. It uses the same
+      source-image horizontal scale as the 1920px-wide panorama artwork, but
+      only its 194px-high top strip is needed. JavaScript moves its background
+      position at half the camera speed to create a subtle distant parallax.
+    */
+    #skyLayer {
+      position: absolute;
+      left: 0;
+      top: var(--pano-strip-top, 0px);
+      width: 100%;
+      height: var(--sky-strip-height, 194px);
+      z-index: 0;
+      pointer-events: none;
+      background-image: url("sky.jpg");
+      background-repeat: repeat-x;
+      background-position: 0 0;
+      background-size: var(--pano-frame-width, 1920px) var(--sky-strip-height, 194px);
+      filter: brightness(var(--pano-brightness, 1));
+      will-change: background-position;
+    }
+
     #panoramaStrip {
       position: absolute;
       left: 0;
@@ -66,6 +94,37 @@
       display: flex;
       filter: brightness(var(--pano-brightness, 1));
       will-change: transform, filter;
+      z-index: 1;
+    }
+
+    /*
+      Transparent foreground canvas. The continuous 2x-speed foreground strip is
+      WATER | WATER | FIRE | FIRE | WATER | WATER, looping as one panorama.
+    */
+    /*
+      Screen-space reflection for frame0001 and frame0002. reflection.png stays
+      fixed while each frame's luminance mask follows the panorama.
+    */
+    #reflectionCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      display: block;
+      pointer-events: none;
+      image-rendering: auto;
+    }
+
+    #foregroundCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 3;
+      display: block;
+      pointer-events: none;
+      image-rendering: auto;
     }
 
     .panoFrame {
@@ -665,8 +724,19 @@
         box-shadow 0.22s ease;
     }
 
-    /* CONTINUE uses a clean fill with no simulated glass-edge highlight. */
-    #sequenceLearnMore::before,
+    /* A small edge highlight only—no highlight or smudge across the fill. */
+    #sequenceLearnMore::before {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      border-radius: inherit;
+      border-top: 1px solid rgba(255, 255, 255, 0.30);
+      border-left: 1px solid rgba(255, 255, 255, 0.22);
+      clip-path: inset(0 58% 48% 0 round 999px);
+      opacity: 0.72;
+      pointer-events: none;
+    }
+
     #sequenceLearnMore::after {
       content: none;
     }
@@ -683,7 +753,7 @@
       box-shadow: 0 10px 24px rgba(0, 0, 0, 0.17);
     }
 
-    /* Give multi-profile page indicators a clear visual break before CONTINUE. */
+    /* Give multi-profile page indicators a clear visual break before MORE INFO. */
     #sequenceLottieCard.is-multi-lottie #sequenceLearnMore {
       margin-top: 42px;
     }
@@ -832,7 +902,8 @@
     #hotspotFocusCircle {
       position: fixed;
       left: 50%;
-      bottom: 104px;
+      /* Bottom navigation is temporarily hidden, so use that freed space. */
+      bottom: 44px;
       transform: translateX(-50%) scale(1);
       transform-origin: center center;
       width: 160px;
@@ -1646,7 +1717,7 @@
 
     /*
       FINAL MOBILE LANDSCAPE LAYOUT
-      Keep CONTINUE below the Lottie, matching portrait and desktop behavior.
+      Keep MORE INFO below the Lottie, matching portrait and desktop behavior.
       The complete card scales down to the available mobile viewport instead
       of splitting into a side-by-side layout.
     */
@@ -1752,7 +1823,7 @@
     /*
       NEO LUMBER's Lottie artwork has a large transparent band beneath the
       visible profile drawing. Pull its supporting copy into that unused area,
-      then preserve a deliberate, separate gap before CONTINUE.
+      then preserve a deliberate, separate gap before MORE INFO.
     */
     #sequenceLottieCard.is-neo-lumber #sequenceContextText {
       /* Keep the copy close to the artwork, but leave a visible breathing gap. */
@@ -1852,8 +1923,7 @@
     }
 
     @media (hover: none) and (pointer: coarse),
-    (max-width: 700px),
-    (max-height: 600px) and (orientation: landscape) {
+    (max-width: 700px) {
       #mobileMenuButton {
         display: flex;
         right: max(10px, env(safe-area-inset-right));
@@ -1961,10 +2031,8 @@
       #hotspotFocusClose {
         width: 28px;
         height: 28px;
-        /* Keep the small control outside the circle instead of letting the
-           two circular shapes collide as the focus element scales down. */
-        right: -20px;
-        bottom: -4px;
+        right: -9px;
+        bottom: -5px;
       }
 
       #hotspotFocusClose svg {
@@ -1977,22 +2045,6 @@
         height: 32px;
         bottom: 0;
         font-size: 9px;
-      }
-
-      /* Whenever the mobile dropdown control replaces the desktop button row,
-         the pause/play control occupies the matching top-left position. It no
-         longer waits for the dropdown to be opened before moving. */
-      #panToggleButton {
-        left: max(10px, env(safe-area-inset-left));
-        transform: none;
-        transition:
-          background 0.2s ease,
-          transform 0.2s ease;
-      }
-
-      #panToggleButton:hover,
-      #panToggleButton:focus-visible {
-        transform: scale(1.05);
       }
     }
 
@@ -2042,7 +2094,7 @@
       #hotspotFocusClose {
         width: 24px;
         height: 24px;
-        right: -18px;
+        right: -8px;
         bottom: -4px;
       }
 
@@ -2051,12 +2103,7 @@
         height: 28px;
         font-size: 8px;
       }
-
-      #panToggleButton {
-        left: max(8px, env(safe-area-inset-left));
-      }
     }
-
 
     /* ================================================================
        FINAL MOBILE CONTROL REMOVAL
@@ -2084,35 +2131,38 @@
 <body>
   <div id="viewer">
     <div id="scenePlane">
+      <div id="skyLayer" aria-hidden="true"></div>
       <div id="panoramaStrip"></div>
+      <canvas id="reflectionCanvas" aria-hidden="true"></canvas>
+      <canvas id="foregroundCanvas" aria-hidden="true"></canvas>
 
       <!-- Hotspots -->
-      <button class="hotspot" id="hotspot1" aria-label="CUSTOM CUT">
+      <button class="hotspot" id="hotspot1" aria-label="NEO LUMBER">
+        <span class="hotspotLabel">NEO LUMBER</span>
+      </button>
+      <button class="hotspot" id="hotspot2" aria-label="CUSTOM CUT">
         <span class="hotspotLabel">CUSTOM CUT</span>
       </button>
-      <button class="hotspot" id="hotspot2" aria-label="RANDOM PLANK">
+      <button class="hotspot" id="hotspot3" aria-label="NEO LUMBER">
+        <span class="hotspotLabel">NEO LUMBER</span>
+      </button>
+      <button class="hotspot" id="hotspot4" aria-label="RANDOM PLANK">
         <span class="hotspotLabel">RANDOM PLANK</span>
       </button>
-      <button class="hotspot" id="hotspot3" aria-label="METAL CRAFT">
+      <button class="hotspot" id="hotspot5" aria-label="METAL CRAFT">
         <span class="hotspotLabel">METAL CRAFT</span>
       </button>
-      <button class="hotspot" id="hotspot4" aria-label="BOARD + BATTEN">
-        <span class="hotspotLabel">BOARD + BATTEN</span>
-      </button>
-      <button class="hotspot" id="hotspot5" aria-label="SOFFIT">
-        <span class="hotspotLabel">SOFFIT</span>
-      </button>
-      <button class="hotspot" id="hotspot6" aria-label="BOARD + BATTEN">
-        <span class="hotspotLabel">BOARD + BATTEN</span>
-      </button>
-      <button class="hotspot" id="hotspot7" aria-label="LUX LAP">
-        <span class="hotspotLabel">LUX LAP</span>
-      </button>
-      <button class="hotspot" id="hotspot8" aria-label="CHANNEL SIDING">
+      <button class="hotspot" id="hotspot6" aria-label="CHANNEL SIDING">
         <span class="hotspotLabel">CHANNEL SIDING</span>
       </button>
-      <button class="hotspot" id="hotspot9" aria-label="NEO LUMBER">
-        <span class="hotspotLabel">NEO LUMBER</span>
+      <button class="hotspot" id="hotspot7" aria-label="SOFFIT">
+        <span class="hotspotLabel">SOFFIT</span>
+      </button>
+      <button class="hotspot" id="hotspot8" aria-label="LUX LAP">
+        <span class="hotspotLabel">LUX LAP</span>
+      </button>
+      <button class="hotspot" id="hotspot9" aria-label="BOARD+BATTEN">
+        <span class="hotspotLabel">BOARD+BATTEN</span>
       </button>
     </div>
   </div>
@@ -2197,8 +2247,8 @@
         </div>
       </div>
 
-      <p id="sequenceContextText">View all profiles and more on the NEO LUMBER page. Click the continue button below to explore</p>
-      <button id="sequenceLearnMore" type="button">CONTINUE</button>
+      <p id="sequenceContextText">View all profiles and more on the NEO LUMBER page. Click the MORE INFO button below to explore</p>
+      <button id="sequenceLearnMore" type="button">MORE INFO</button>
     </div>
   </div>
 
@@ -2220,7 +2270,12 @@
   <script>
     const container = document.getElementById("viewer");
     const scenePlane = document.getElementById("scenePlane");
+    const skyLayer = document.getElementById("skyLayer");
     const panoramaStrip = document.getElementById("panoramaStrip");
+    const reflectionCanvas = document.getElementById("reflectionCanvas");
+    const reflectionContext = reflectionCanvas.getContext("2d", { alpha: true });
+    const foregroundCanvas = document.getElementById("foregroundCanvas");
+    const foregroundContext = foregroundCanvas.getContext("2d", { alpha: true });
     const frameButtonsWrapper = document.getElementById("frameButtons");
     let frameButtons = [];
     const sequenceBackButton = document.getElementById("sequenceBackButton");
@@ -2252,6 +2307,7 @@
     const hotspotConnectorPulseB = document.getElementById("hotspotConnectorPulseB");
     const hotspotConnectorDotB = document.getElementById("hotspotConnectorDotB");
     const hotspotFocusCircle = document.getElementById("hotspotFocusCircle");
+    const hotspotThumbnailStage = document.getElementById("hotspotThumbnailStage");
     const hotspotFocusThumbnailA = document.getElementById("hotspotFocusThumbnailA");
     const hotspotFocusThumbnailB = document.getElementById("hotspotFocusThumbnailB");
     const hotspotFocusClose = document.getElementById("hotspotFocusClose");
@@ -2276,6 +2332,102 @@
     const panoFrameAspectRatio = 16 / 9;
 
     /*
+      Distant sky layer. sky.jpg sits beside index.html and is 1920 x 194.
+      It stays aligned to the top of the panorama artwork and travels at half
+      the horizontal speed of the main panorama.
+    */
+    const skySourceWidth = 1920;
+    const skySourceHeight = 194;
+    const skyParallaxMultiplier = 0.5;
+    let skyWrapCycles = 0;
+
+    /*
+      Vertical page-scroll parallax.
+
+      The Elementor page itself scrolls outside this viewer. When same-origin
+      parent access is available we follow the parent scroll position directly.
+      For cross-origin embeds, passive wheel/touch tracking inside the iframe
+      provides the same effect without blocking the website's normal scrolling.
+
+      Only frame0000-frame0002 and their hotspot/mask positions move vertically.
+      The sky and foreground canvas stay screen-fixed, creating the requested
+      layered depth.
+    */
+    const scrollParallaxStrength = 0.18;
+    const scrollParallaxMaxSourceY = 140;
+    const scrollParallaxEase = 0.12;
+    let scrollParallaxY = 0;
+    let scrollParallaxTargetY = 0;
+    let parentScrollParallaxLinked = false;
+    let touchScrollParallaxLastY = null;
+
+    /*
+      Animated foreground parallax layers.
+
+      WATER foreground:
+      - "Water front.png" sits beside index.html and is the complete 1920 x 1080
+        still foreground artwork.
+      - 180/FRONT/FRONT 01/WATER00.png through WATER33.png are now only the
+        small animated crop. The supplied 1920 x 1080 placement reference anchors
+        that 727 x 193 crop at x=263, y=807.
+      - Drawing the still once per foreground tile and only replacing that small
+        rectangle keeps the exact old visual layout while loading far less data.
+
+      frame0001 foreground:
+      Static PNG beside this index file: "Fire front.png"
+      Animated fire insert:
+      Folder: 180/FRONT/FRONT 02/
+      Files: fire00.png through fire42.png
+
+      The foreground is treated as one continuous panoramic strip, just like
+      frame0000 -> frame0001 -> frame0002, but it travels at 2x camera speed.
+
+      Because the foreground travels twice as far as the background, every
+      panorama-frame section is represented by TWO consecutive foreground tiles:
+      WATER, WATER, FIRE FRONT, FIRE FRONT, WATER, WATER.
+    */
+    const foregroundFolder = `${frameFolder}/FRONT/FRONT 01`;
+    const foregroundFrameCount = 34;
+    const foregroundFps = 24;
+    const foregroundParallaxMultiplier = 2;
+    const foregroundFrames = Array.from({ length: foregroundFrameCount }, (_, i) =>
+      `${foregroundFolder}/WATER${String(i).padStart(2, "0")}.png`
+    );
+
+    const waterForegroundImageSource = "Water front.png";
+    const waterSequenceSourceX = 263;
+    const waterSequenceSourceY = 807;
+    const waterSequenceSourceWidth = 727;
+    const waterSequenceSourceHeight = 193;
+
+    const fireForegroundFrameIndex = 1;
+    const fireForegroundImageSource = "Fire front.png";
+    const fireSequenceFolder = `${frameFolder}/FRONT/FRONT 02`;
+    const fireSequenceFrameCount = 43;
+    const fireSequenceFps = 24;
+    const fireSequenceFrames = Array.from({ length: fireSequenceFrameCount }, (_, i) =>
+      `${fireSequenceFolder}/fire${String(i).padStart(2, "0")}.png`
+    );
+
+    /*
+      The supplied 1920 x 1080 placement reference puts the 232 x 140 fire
+      sequence at exactly x=1156, y=892.
+    */
+    const fireSequenceSourceX = 1156;
+    const fireSequenceSourceY = 892;
+    const fireSequenceSourceWidth = 232;
+    const fireSequenceSourceHeight = 140;
+
+    let foregroundImages = [];
+    let waterForegroundImage = null;
+    let fireForegroundImage = null;
+    let fireSequenceImages = [];
+    let foregroundReady = false;
+    let fireForegroundReady = false;
+    let foregroundStartTime = 0;
+    let foregroundLoadPromise = null;
+
+    /*
       Hotspot adjustments were originally measured against the 1920 × 1080
       panorama artwork. Keep those nudges in source-image space and scale them
       with the rendered panorama so hotspots stay attached to the same object
@@ -2284,9 +2436,60 @@
     const panoSourceWidth = 1920;
     const panoSourceHeight = 1080;
 
-    const frames = Array.from({ length: frameCount }, (_, i) => {
-      return `${frameFolder}/frame${String(i).padStart(4, "0")}.jpg`;
-    });
+    /*
+      Shift the main frame0000-frame0002 panorama artwork 11 source pixels
+      to the right. Scale the adjustment with the rendered 1920px artwork so
+      the alignment remains identical on responsive layouts. Foreground layers
+      keep their existing screen position.
+    */
+    const mainPanoramaSourceOffsetX = 11;
+
+    function getMainPanoramaOffsetX() {
+      return mainPanoramaSourceOffsetX * (frameWidth / panoSourceWidth);
+    }
+
+    const frames = [
+      `${frameFolder}/frame0000.jpg`,
+      `${frameFolder}/frame0001.png`,
+      `${frameFolder}/frame0002.png`
+    ];
+
+    /*
+      Reflection assets live beside this index file.
+
+      The same screen-fixed "reflection.png" is used for:
+      - frame0000 with "reaflection_mask_03.jpg"
+      - frame0001 with "reaflection_mask_02.jpg"
+      - frame0002 with "reaflection_mask.jpg"
+
+      Each JPG mask moves with its own panorama frame while reflection.png itself
+      remains fixed in screen space.
+    */
+    const reflectionImageSource = "reflection.png";
+    const reflectionLayerConfigs = [
+      {
+        frameIndex: 0,
+        maskSource: "reaflection_mask_03.jpg",
+        maskImage: null,
+        maskAlphaCanvas: null
+      },
+      {
+        frameIndex: 1,
+        maskSource: "reaflection_mask_02.jpg",
+        maskImage: null,
+        maskAlphaCanvas: null
+      },
+      {
+        frameIndex: 2,
+        maskSource: "reaflection_mask.jpg",
+        maskImage: null,
+        maskAlphaCanvas: null
+      }
+    ];
+    let reflectionImage = null;
+    let reflectionReady = false;
+    let reflectionVisible = true;
+    let reflectionLoadPromise = null;
 
     /*
       Sequence setup.
@@ -2306,19 +2509,19 @@
 
       Examples:
       METAL CRAFT/METAL CRAFT00.jpg
-      METAL CRAFT/METAL CRAFT29.jpg
+      METAL CRAFT/METAL CRAFT50.jpg
     */
     // Each selected sequence must fully load and decode before either direction plays.
     const sequenceConfigs = [
       { key: "customCut", frame: 0, hotspotText: "CUSTOM CUT", folder: "CUSTOM CUT", prefix: "CUSTOM CUT", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/v-groove-steel-siding/" },
       { key: "randomPlank", frame: 0, hotspotText: "RANDOM PLANK", folder: "RANDOM PLANK", prefix: "RANDOM PLANK", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/random-plank/" },
-      { key: "metalCraft", frame: 0, hotspotText: "METAL CRAFT", folder: "METAL CRAFT", prefix: "METAL CRAFT", count: 30, pad: 2, extension: "jpg", fps: 24, sourceOffsetX: 281, sourceCanvasWidth: 1920, learnMoreUrl: "https://luxarpro.com/metal-craft-series/" },
-      { key: "boardBatten", frame: 1, hotspotText: "BOARD + BATTEN", folder: "BOARD + BATTEN", prefix: "BOARD + BATTEN", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/board-and-batten/" },
-      { key: "boardBatten02", frame: 1, hotspotText: "BOARD + BATTEN", folder: "BOARD + BATTEN 02", prefix: "BOARD + BATTEN", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/board-and-batten/" },
-      { key: "soffit", frame: 1, hotspotText: "SOFFIT", folder: "SOFFIT", prefix: "SOFFIT", count: 48, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/soffit/" },
-      { key: "luxLap", frame: 1, hotspotText: "LUX LAP", folder: "LUX LAP", prefix: "LUX LAP", count: 32, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/lux-lap-cladding-panel/" },
+      { key: "metalCraft", frame: 1, hotspotText: "METAL CRAFT", folder: "METAL CRAFT", prefix: "METAL CRAFT", count: 51, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/metal-craft-series/" },
+      { key: "boardBatten", frame: 2, hotspotText: "BOARD + BATTEN", folder: "BOARD + BATTEN", prefix: "BOARD + BATTEN", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/board-and-batten/" },
+      { key: "boardBatten02", frame: 2, hotspotText: "BOARD + BATTEN", folder: "BOARD + BATTEN 02", prefix: "BOARD + BATTEN", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/board-and-batten/" },
+      { key: "soffit", frame: 2, hotspotText: "SOFFIT", folder: "SOFFIT", prefix: "SOFFIT", count: 48, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/soffit/" },
+      { key: "luxLap", frame: 2, hotspotText: "LUX LAP", folder: "LUX LAP", prefix: "LUX LAP", count: 32, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/lux-lap-cladding-panel/" },
       { key: "channelSiding", frame: 2, hotspotText: "CHANNEL SIDING", folder: "CHANNEL SIDING", prefix: "CHANNEL SIDING", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/channel-siding/" },
-      { key: "neoLumber", frame: 2, hotspotText: "NEO LUMBER", folder: "NEO LUMBER", prefix: "NEO LUMBER", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/neo-lumber/" }
+      { key: "neoLumber", frame: 0, hotspotText: "NEO LUMBER", folder: "NEO LUMBER", prefix: "NEO LUMBER", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/neo-lumber/" }
     ];
 
     const sequenceByFrame = new Map();
@@ -2702,6 +2905,9 @@
       document.documentElement.style.setProperty("--pano-frame-width", `${frameWidth}px`);
       document.documentElement.style.setProperty("--pano-frame-height", `${frameHeight}px`);
       document.documentElement.style.setProperty("--pano-strip-top", `${panoStripTop}px`);
+
+      const skyHeight = frameWidth * (skySourceHeight / skySourceWidth);
+      document.documentElement.style.setProperty("--sky-strip-height", `${skyHeight}px`);
     }
 
     function syncPanoFrameWidthCSS() {
@@ -2709,9 +2915,9 @@
     }
 
     /*
-      Convert an offset measured in the original 1920px source image into
-      the matching number of CSS pixels at the panorama's current rendered
-      width. This keeps METAL CRAFT aligned at every viewport aspect ratio.
+      Convert an optional source-image offset into matching CSS pixels at
+      the panorama's current rendered width. Normal hotspot sequences use no
+      offset, so their first frame aligns directly with the panorama frame.
     */
     function getResponsiveSequenceOffsetX(config, renderedFrameWidth = frameWidth) {
       const sourceOffsetX = Number(config?.sourceOffsetX || 0);
@@ -2751,9 +2957,9 @@
       if (!isMobilePortraitSequenceLayout() || !hotspot || !config) return 0;
 
       /*
-        The sequence image begins at config.sourceOffsetX within the panorama
-        (zero for every ordinary sequence and the compensated value for METAL
-        CRAFT). Centre the hotspot inside that sequence coordinate system.
+        The sequence image normally begins at the matching panorama frame.
+        If an optional source offset is ever configured, include it when
+        calculating the portrait crop.
       */
       const viewport = getVisibleViewportSize();
       const sequenceSourceStartX = getResponsiveSequenceOffsetX(config);
@@ -3042,6 +3248,445 @@
       });
     }
 
+    async function preloadForegroundSequence() {
+      if (
+        foregroundReady &&
+        foregroundImages.length === foregroundFrames.length &&
+        waterForegroundImage &&
+        fireForegroundReady &&
+        fireForegroundImage &&
+        fireSequenceImages.length === fireSequenceFrames.length
+      ) {
+        return true;
+      }
+      if (foregroundLoadPromise) return foregroundLoadPromise;
+
+      foregroundLoadPromise = (async () => {
+        const loadedWaterImages = [];
+        const loadedFireImages = [];
+        const batchSize = 6;
+
+        const loadedWaterForeground = await loadDecodedSequenceImage(
+          waterForegroundImageSource
+        );
+
+        for (let startIndex = 0; startIndex < foregroundFrames.length; startIndex += batchSize) {
+          const batchSources = foregroundFrames.slice(startIndex, startIndex + batchSize);
+          const batchImages = await Promise.all(
+            batchSources.map((src) => loadDecodedSequenceImage(src))
+          );
+          loadedWaterImages.push(...batchImages);
+        }
+
+        const loadedFireForeground = await loadDecodedSequenceImage(
+          fireForegroundImageSource
+        );
+
+        for (let startIndex = 0; startIndex < fireSequenceFrames.length; startIndex += batchSize) {
+          const batchSources = fireSequenceFrames.slice(startIndex, startIndex + batchSize);
+          const batchImages = await Promise.all(
+            batchSources.map((src) => loadDecodedSequenceImage(src))
+          );
+          loadedFireImages.push(...batchImages);
+        }
+
+        foregroundImages = loadedWaterImages;
+        waterForegroundImage = loadedWaterForeground;
+        fireForegroundImage = loadedFireForeground;
+        fireSequenceImages = loadedFireImages;
+        foregroundReady = true;
+        fireForegroundReady = true;
+        foregroundStartTime = performance.now();
+        return true;
+      })().catch((error) => {
+        console.error("The panorama foreground assets could not be loaded.", error);
+        foregroundImages = [];
+        waterForegroundImage = null;
+        fireForegroundImage = null;
+        fireSequenceImages = [];
+        foregroundReady = false;
+        fireForegroundReady = false;
+        foregroundLoadPromise = null;
+        return false;
+      });
+
+      return foregroundLoadPromise;
+    }
+
+    function syncForegroundCanvasSize() {
+      if (!foregroundCanvas || !foregroundContext) return getVisibleViewportSize();
+
+      const viewport = getVisibleViewportSize();
+      const pixelRatio = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+      const cssWidth = Math.max(1, viewport.width);
+      const cssHeight = Math.max(1, viewport.height);
+      const bitmapWidth = Math.max(1, Math.round(cssWidth * pixelRatio));
+      const bitmapHeight = Math.max(1, Math.round(cssHeight * pixelRatio));
+
+      foregroundCanvas.style.width = `${cssWidth}px`;
+      foregroundCanvas.style.height = `${cssHeight}px`;
+
+      if (foregroundCanvas.width !== bitmapWidth || foregroundCanvas.height !== bitmapHeight) {
+        foregroundCanvas.width = bitmapWidth;
+        foregroundCanvas.height = bitmapHeight;
+      }
+
+      foregroundContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      foregroundContext.imageSmoothingEnabled = true;
+      foregroundContext.imageSmoothingQuality = "high";
+      return viewport;
+    }
+
+    function drawForegroundTile(
+      baseImage,
+      overlayImage,
+      drawX,
+      overlaySourceX = 0,
+      overlaySourceY = 0,
+      overlaySourceWidth = 0,
+      overlaySourceHeight = 0
+    ) {
+      if (!baseImage || !baseImage.naturalWidth || !baseImage.naturalHeight) return;
+
+      /*
+        The foreground canvas deliberately does NOT receive the vertical
+        page-scroll parallax used by the main panorama. This keeps the closest
+        layer locked in place while the background slides beneath it.
+      */
+      foregroundContext.drawImage(
+        baseImage,
+        drawX,
+        panoStripTop,
+        frameWidth,
+        frameHeight
+      );
+
+      if (
+        overlayImage &&
+        overlayImage.naturalWidth &&
+        overlayImage.naturalHeight &&
+        overlaySourceWidth > 0 &&
+        overlaySourceHeight > 0
+      ) {
+        const overlayX =
+          drawX + (overlaySourceX / panoSourceWidth) * frameWidth;
+        const overlayY =
+          panoStripTop + (overlaySourceY / panoSourceHeight) * frameHeight;
+        const overlayWidth =
+          (overlaySourceWidth / panoSourceWidth) * frameWidth;
+        const overlayHeight =
+          (overlaySourceHeight / panoSourceHeight) * frameHeight;
+
+        foregroundContext.drawImage(
+          overlayImage,
+          overlayX,
+          overlayY,
+          overlayWidth,
+          overlayHeight
+        );
+      }
+    }
+
+    function updateForeground(now = performance.now()) {
+      if (!foregroundReady || !foregroundImages.length || !foregroundContext) return;
+
+      const viewport = syncForegroundCanvasSize();
+      const elapsed = Math.max(0, now - foregroundStartTime);
+
+      const waterFrameDuration = 1000 / foregroundFps;
+      const waterAnimationIndex =
+        Math.floor(elapsed / waterFrameDuration) % foregroundImages.length;
+      const waterImage = foregroundImages[waterAnimationIndex];
+
+      if (!waterImage || !waterImage.naturalWidth || !waterImage.naturalHeight) return;
+
+      let fireImage = null;
+
+      if (
+        fireForegroundReady &&
+        fireForegroundImage &&
+        fireSequenceImages.length
+      ) {
+        const fireFrameDuration = 1000 / fireSequenceFps;
+        const fireAnimationIndex =
+          Math.floor(elapsed / fireFrameDuration) % fireSequenceImages.length;
+        fireImage = fireSequenceImages[fireAnimationIndex];
+      }
+
+      foregroundContext.clearRect(0, 0, viewport.width, viewport.height);
+
+      /*
+        IMPORTANT FOREGROUND LAYOUT
+
+        The foreground must behave as ONE long panoramic strip, not as an image
+        that gets switched according to whichever background frame happens to
+        be on screen.
+
+        Background logical strip:
+          frame0000 | frame0001 | frame0002
+
+        Foreground logical strip at 2x travel:
+          WATER | WATER | FIRE | FIRE | WATER | WATER
+
+        Each WATER tile is "Water front.png" (1920 x 1080) plus only the
+        cropped WATER animation rectangle. FIRE tiles use "Fire front.png" plus
+        their own small animated insert. Both still bases scale to the same
+        rendered frameWidth/frameHeight as the panorama.
+
+        Moving the camera by one background frame (1 x frameWidth) therefore
+        advances the foreground by two foreground tiles (2 x frameWidth).
+        This preserves the exact original 2x parallax movement while allowing
+        Fire front.png to replace ONLY the two foreground tiles belonging to
+        frame0001, with no clipping or discontinuity at background-frame edges.
+      */
+      const foregroundCopiesPerPanoramaFrame =
+        Math.max(1, Math.round(foregroundParallaxMultiplier));
+      const foregroundCycleTileCount =
+        frameCount * foregroundCopiesPerPanoramaFrame;
+      const foregroundCycleWidth =
+        frameWidth * foregroundCycleTileCount;
+
+      const foregroundTravel =
+        currentOffset * foregroundParallaxMultiplier;
+      const wrappedTravel =
+        ((foregroundTravel % foregroundCycleWidth) + foregroundCycleWidth) %
+        foregroundCycleWidth;
+
+      let logicalTileIndex =
+        Math.floor(wrappedTravel / frameWidth);
+      let drawX =
+        -(wrappedTravel - logicalTileIndex * frameWidth);
+
+      /*
+        Draw enough consecutive tiles to cover even very wide viewports.
+        The logical tile index determines which section of the continuous
+        foreground panorama we are in.
+      */
+      while (drawX < viewport.width) {
+        const cycleTileIndex =
+          ((logicalTileIndex % foregroundCycleTileCount) +
+            foregroundCycleTileCount) %
+          foregroundCycleTileCount;
+
+        const panoramaSectionIndex =
+          Math.floor(
+            cycleTileIndex / foregroundCopiesPerPanoramaFrame
+          ) % frameCount;
+
+        const useFireForeground =
+          panoramaSectionIndex === fireForegroundFrameIndex &&
+          fireForegroundReady &&
+          fireForegroundImage;
+
+        if (useFireForeground) {
+          drawForegroundTile(
+            fireForegroundImage,
+            fireImage,
+            drawX,
+            fireSequenceSourceX,
+            fireSequenceSourceY,
+            fireSequenceSourceWidth,
+            fireSequenceSourceHeight
+          );
+        } else {
+          drawForegroundTile(
+            waterForegroundImage,
+            waterImage,
+            drawX,
+            waterSequenceSourceX,
+            waterSequenceSourceY,
+            waterSequenceSourceWidth,
+            waterSequenceSourceHeight
+          );
+        }
+
+        drawX += frameWidth;
+        logicalTileIndex += 1;
+      }
+    }
+
+    function createLuminanceAlphaMaskCanvas(image) {
+      const maskCanvas = document.createElement("canvas");
+      maskCanvas.width = Math.max(1, image.naturalWidth || panoSourceWidth);
+      maskCanvas.height = Math.max(1, image.naturalHeight || panoSourceHeight);
+
+      const maskContext = maskCanvas.getContext("2d", { willReadFrequently: true });
+      maskContext.drawImage(image, 0, 0, maskCanvas.width, maskCanvas.height);
+
+      /*
+        JPEG files have no alpha channel, so turn their brightness into alpha:
+        black = hidden, white = fully visible, grey = partially visible.
+      */
+      const imageData = maskContext.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+      const pixels = imageData.data;
+
+      for (let i = 0; i < pixels.length; i += 4) {
+        const luminance = Math.round(
+          pixels[i] * 0.2126 +
+          pixels[i + 1] * 0.7152 +
+          pixels[i + 2] * 0.0722
+        );
+
+        pixels[i] = 255;
+        pixels[i + 1] = 255;
+        pixels[i + 2] = 255;
+        pixels[i + 3] = luminance;
+      }
+
+      maskContext.putImageData(imageData, 0, 0);
+      return maskCanvas;
+    }
+
+    async function preloadReflectionLayer() {
+      const masksReady = reflectionLayerConfigs.every(
+        (config) => config.maskImage && config.maskAlphaCanvas
+      );
+
+      if (reflectionReady && reflectionImage && masksReady) {
+        return true;
+      }
+      if (reflectionLoadPromise) return reflectionLoadPromise;
+
+      reflectionLoadPromise = Promise.all([
+        loadDecodedSequenceImage(reflectionImageSource),
+        ...reflectionLayerConfigs.map((config) =>
+          loadDecodedSequenceImage(config.maskSource)
+        )
+      ]).then(([loadedReflection, ...loadedMasks]) => {
+        reflectionImage = loadedReflection;
+
+        reflectionLayerConfigs.forEach((config, index) => {
+          config.maskImage = loadedMasks[index];
+          config.maskAlphaCanvas = createLuminanceAlphaMaskCanvas(
+            loadedMasks[index]
+          );
+        });
+
+        reflectionReady = true;
+        updateReflection();
+        return true;
+      }).catch((error) => {
+        console.error("The panorama reflection overlays could not be loaded.", error);
+        reflectionImage = null;
+
+        reflectionLayerConfigs.forEach((config) => {
+          config.maskImage = null;
+          config.maskAlphaCanvas = null;
+        });
+
+        reflectionReady = false;
+        reflectionLoadPromise = null;
+        return false;
+      });
+
+      return reflectionLoadPromise;
+    }
+
+    function syncReflectionCanvasSize() {
+      if (!reflectionCanvas || !reflectionContext) return getVisibleViewportSize();
+
+      const viewport = getVisibleViewportSize();
+      const pixelRatio = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+      const cssWidth = Math.max(1, viewport.width);
+      const cssHeight = Math.max(1, viewport.height);
+      const bitmapWidth = Math.max(1, Math.round(cssWidth * pixelRatio));
+      const bitmapHeight = Math.max(1, Math.round(cssHeight * pixelRatio));
+
+      reflectionCanvas.style.width = `${cssWidth}px`;
+      reflectionCanvas.style.height = `${cssHeight}px`;
+
+      if (
+        reflectionCanvas.width !== bitmapWidth ||
+        reflectionCanvas.height !== bitmapHeight
+      ) {
+        reflectionCanvas.width = bitmapWidth;
+        reflectionCanvas.height = bitmapHeight;
+      }
+
+      reflectionContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      reflectionContext.imageSmoothingEnabled = true;
+      reflectionContext.imageSmoothingQuality = "high";
+      return viewport;
+    }
+
+    function setReflectionVisible(visible) {
+      reflectionVisible = Boolean(visible);
+      reflectionCanvas.style.visibility = reflectionVisible ? "visible" : "hidden";
+
+      if (!reflectionVisible && reflectionContext) {
+        const viewport = syncReflectionCanvasSize();
+        reflectionContext.clearRect(0, 0, viewport.width, viewport.height);
+      } else if (reflectionVisible) {
+        updateReflection();
+      }
+    }
+
+    function updateReflection() {
+      if (!reflectionCanvas || !reflectionContext) return;
+
+      const viewport = syncReflectionCanvasSize();
+      reflectionContext.clearRect(0, 0, viewport.width, viewport.height);
+
+      const masksReady = reflectionLayerConfigs.every(
+        (config) => config.maskAlphaCanvas
+      );
+
+      if (
+        !reflectionVisible ||
+        !reflectionReady ||
+        !reflectionImage ||
+        !masksReady
+      ) {
+        return;
+      }
+
+      reflectionContext.save();
+      reflectionContext.globalCompositeOperation = "source-over";
+
+      /*
+        Draw both moving mask sets into one alpha boundary:
+        - frame0000 uses reaflection_mask_03.jpg
+        - frame0001 uses reaflection_mask_02.jpg
+        - frame0002 uses reaflection_mask.jpg
+
+        The panorama strip contains three copies, so each mask is drawn wherever
+        its matching panorama frame is currently visible.
+      */
+      reflectionLayerConfigs.forEach((config) => {
+        for (let repeat = 0; repeat < 3; repeat++) {
+          const frameWorldX =
+            repeat * totalWidth + config.frameIndex * frameWidth;
+          const screenX =
+            frameWorldX - currentOffset + getMainPanoramaOffsetX();
+
+          if (screenX >= viewport.width || screenX + frameWidth <= 0) continue;
+
+          reflectionContext.drawImage(
+            config.maskAlphaCanvas,
+            screenX,
+            panoStripTop + getActiveScrollParallaxY(),
+            frameWidth,
+            frameHeight
+          );
+        }
+      });
+
+      /*
+        source-in keeps the moving masks as the alpha boundary. reflection.png
+        remains fixed in screen space for both frame0001 and frame0002.
+      */
+      reflectionContext.globalCompositeOperation = "source-in";
+      reflectionContext.drawImage(
+        reflectionImage,
+        0,
+        panoStripTop,
+        frameWidth,
+        frameHeight
+      );
+
+      reflectionContext.restore();
+    }
+
     async function preloadSequence(config) {
       if (!config) return false;
       if (config.imagesReady && config.imageElements.length === config.frames.length) {
@@ -3140,100 +3785,91 @@
       updateActiveFrameButton();
     }
 
+    /* Move every hotspot 110 source-image pixels downward. */
+    const hotspotGlobalOffsetY = 110;
+
     const hotspots = [
       {
         element: document.getElementById("hotspot1"),
         label: "Hotspot 1",
         frame: 0,
-        x: 35.64,
-        y: 33.36,
-        offsetY: 60,
-        title: "Hotspot 1",
-        text: "CUSTOM CUT"
+        x: 19.89,
+        y: 15.92,
+        title: "NEO LUMBER",
+        text: "NEO LUMBER"
       },
       {
         element: document.getElementById("hotspot2"),
         label: "Hotspot 2",
         frame: 0,
-        x: 58.8,
-        y: 60.05,
-        offsetY: -60,
-        title: "Hotspot 2",
-        text: "RANDOM PLANK"
+        x: 48.68,
+        y: 10.06,
+        title: "CUSTOM CUT",
+        text: "CUSTOM CUT"
       },
       {
         element: document.getElementById("hotspot3"),
         label: "Hotspot 3",
         frame: 0,
-        x: 93.33,
-        y: 55.75,
-        offsetX: -5,
-        offsetY: -30,
-        title: "Hotspot 3",
-        text: "METAL CRAFT"
+        x: 81.08,
+        y: 14.11,
+        title: "NEO LUMBER",
+        text: "NEO LUMBER"
       },
       {
         element: document.getElementById("hotspot4"),
         label: "Hotspot 4",
-        frame: 1,
-        x: 16.41,
-        y: 22.06,
-        offsetY: 60,
-        title: "Hotspot 4",
-        text: "BOARD + BATTEN",
-        sequenceKey: "boardBatten02"
+        frame: 0,
+        x: 96.77,
+        y: 21.51,
+        title: "RANDOM PLANK",
+        text: "RANDOM PLANK"
       },
       {
         element: document.getElementById("hotspot5"),
         label: "Hotspot 5",
         frame: 1,
-        x: 40.68,
-        y: 11.08,
-        offsetY: 60,
-        title: "Hotspot 5",
-        text: "SOFFIT"
+        x: 82.14,
+        y: 13.41,
+        title: "METAL CRAFT",
+        text: "METAL CRAFT"
       },
       {
         element: document.getElementById("hotspot6"),
         label: "Hotspot 6",
-        frame: 1,
-        x: 67.36,
-        y: 60.48,
-        offsetY: -55,
-        title: "Hotspot 6",
-        text: "BOARD + BATTEN",
-        sequenceKey: "boardBatten"
+        frame: 2,
+        x: 13.57,
+        y: 37.01,
+        title: "CHANNEL SIDING",
+        text: "CHANNEL SIDING"
       },
       {
         element: document.getElementById("hotspot7"),
         label: "Hotspot 7",
-        frame: 1,
-        x: 82.16,
-        y: 9.04,
-        offsetY: 100,
-        title: "Hotspot 7",
-        text: "LUX LAP"
+        frame: 2,
+        x: 46.79,
+        y: 23.6,
+        offsetY: -30,
+        title: "SOFFIT",
+        text: "SOFFIT"
       },
       {
         element: document.getElementById("hotspot8"),
         label: "Hotspot 8",
         frame: 2,
-        x: 15.76,
-        y: 52.09,
-        offsetY: -20,
-        title: "Hotspot 8",
-        text: "CHANNEL SIDING"
+        x: 80.84,
+        y: 43.44,
+        title: "LUX LAP",
+        text: "LUX LAP"
       },
       {
         element: document.getElementById("hotspot9"),
         label: "Hotspot 9",
         frame: 2,
-        x: 65.04,
-        y: 21.52,
-        offsetX: -60,
-        offsetY: 60,
-        title: "Hotspot 9",
-        text: "NEO LUMBER"
+        x: 97.18,
+        y: 27.16,
+        title: "BOARD+BATTEN",
+        text: "BOARD+BATTEN"
       }
     ];
 
@@ -3398,10 +4034,10 @@
       } else {
         buttonTweenZoomActive = false;
         /*
-          Most sequences line up exactly with the start of their panorama frame.
-          METAL CRAFT uses a custom first sequence frame, so its panorama landing
-          position can be shifted independently before the sequence begins.
-          A positive value moves the panorama camera farther to the right.
+          Sequences line up with the start of their matching panorama frame.
+          destinationOffsetX remains available as a general-purpose adjustment,
+          but normal hotspot sequences use zero so frame 00 lands directly on
+          the matching panorama frame.
         */
         buttonTweenEndOffset =
           getClosestOffsetForFrame(frameIndex) + Number(destinationOffsetX || 0);
@@ -3538,6 +4174,86 @@
       }
     }
 
+    function getScrollParallaxMaxY() {
+      return Math.max(
+        0,
+        scrollParallaxMaxSourceY * (frameHeight / panoSourceHeight)
+      );
+    }
+
+    function clampScrollParallaxTarget(value) {
+      return Math.max(0, Math.min(Number(value || 0), getScrollParallaxMaxY()));
+    }
+
+    function nudgeScrollParallax(deltaY) {
+      if (!Number.isFinite(deltaY) || !deltaY) return;
+      scrollParallaxTargetY = clampScrollParallaxTarget(
+        scrollParallaxTargetY + deltaY * scrollParallaxStrength
+      );
+    }
+
+    function updateScrollParallax() {
+      const desiredY = isMainPanoramaPage()
+        ? clampScrollParallaxTarget(scrollParallaxTargetY)
+        : 0;
+
+      scrollParallaxY += (desiredY - scrollParallaxY) * scrollParallaxEase;
+
+      if (Math.abs(desiredY - scrollParallaxY) < 0.02) {
+        scrollParallaxY = desiredY;
+      }
+    }
+
+    function getActiveScrollParallaxY() {
+      /*
+        Sequence frames are full-screen 1920 x 1080 artwork, so return the main
+        panorama to its exact zero-Y alignment while a sequence is preparing or
+        playing. The requested page-scroll offset is retained and eases back in
+        after returning to the main panorama.
+      */
+      return isMainPanoramaPage() ? scrollParallaxY : 0;
+    }
+
+    function tryLinkParentScrollParallax() {
+      if (!isViewerEmbedded()) return false;
+
+      try {
+        const parentWindow = window.parent;
+        /*
+          Reading parent.document intentionally tests same-origin access.
+          Cross-origin Elementor/GitHub embeds throw here and use wheel/touch
+          tracking below instead.
+        */
+        void parentWindow.document.documentElement;
+
+        const initialParentScrollY = Number(
+          parentWindow.scrollY || parentWindow.pageYOffset || 0
+        );
+        const initialParallaxTargetY = scrollParallaxTargetY;
+
+        const syncFromParentScroll = () => {
+          const currentParentScrollY = Number(
+            parentWindow.scrollY || parentWindow.pageYOffset || 0
+          );
+          const scrollDelta = currentParentScrollY - initialParentScrollY;
+
+          scrollParallaxTargetY = clampScrollParallaxTarget(
+            initialParallaxTargetY + scrollDelta * scrollParallaxStrength
+          );
+        };
+
+        parentWindow.addEventListener("scroll", syncFromParentScroll, {
+          passive: true
+        });
+        parentScrollParallaxLinked = true;
+        syncFromParentScroll();
+        return true;
+      } catch (error) {
+        parentScrollParallaxLinked = false;
+        return false;
+      }
+    }
+
     function updatePanorama() {
       if (buttonTweenActive) {
         updateButtonTween();
@@ -3545,7 +4261,22 @@
         currentOffset += (targetOffset - currentOffset) * cameraEase;
       }
 
-      panoramaStrip.style.transform = `translate3d(${-currentOffset}px, 0, 0)`;
+      const activeScrollParallaxY = getActiveScrollParallaxY();
+      panoramaStrip.style.transform =
+        `translate3d(${-currentOffset + getMainPanoramaOffsetX()}px, ${activeScrollParallaxY}px, 0)`;
+    }
+
+    function updateSky() {
+      if (!skyLayer) return;
+
+      /*
+        currentOffset is periodically wrapped by one complete three-frame
+        panorama width. skyWrapCycles preserves the unwrapped camera travel so
+        the half-speed sky never jumps when that invisible panorama wrap occurs.
+      */
+      const logicalCameraOffset = currentOffset + skyWrapCycles * totalWidth;
+      const skyOffset = -logicalCameraOffset * skyParallaxMultiplier;
+      skyLayer.style.backgroundPosition = `${skyOffset}px 0px`;
     }
 
     function getResponsiveHotspotScaleFactor() {
@@ -3577,7 +4308,8 @@
         const responsiveOffsetX =
           Number(hotspot.offsetX || 0) * (frameWidth / panoSourceWidth);
         const responsiveOffsetY =
-          Number(hotspot.offsetY || 0) * (frameHeight / panoSourceHeight);
+          (Number(hotspot.offsetY || 0) + hotspotGlobalOffsetY) *
+          (frameHeight / panoSourceHeight);
 
         const hotspotBaseX =
           hotspot.frame * frameWidth +
@@ -3589,7 +4321,8 @@
 
         for (let repeat = 0; repeat < 3; repeat++) {
           const worldX = hotspotBaseX + repeat * totalWidth;
-          const screenX = worldX - currentOffset;
+          const screenX =
+            worldX - currentOffset + getMainPanoramaOffsetX();
           const distance = Math.abs(screenX - viewport.width / 2);
 
           if (distance < bestDistance) {
@@ -3600,6 +4333,7 @@
 
         const screenY =
           panoStripTop +
+          getActiveScrollParallaxY() +
           (hotspot.y / 100) * frameHeight +
           responsiveOffsetY;
 
@@ -3720,7 +4454,7 @@
     }
 
     function getClosestVisibleHotspotToCenter() {
-      const centerX = window.innerWidth / 2;
+      const centerX = getVisibleViewportSize().width / 2;
       let closestHotspot = null;
       let closestDistance = Infinity;
 
@@ -4282,6 +5016,7 @@
       if (currentOffset > totalWidth * 2) {
         currentOffset -= totalWidth;
         targetOffset -= totalWidth;
+        skyWrapCycles += 1;
 
         if (buttonTweenActive) {
           if (buttonTweenZoomActive) {
@@ -4297,6 +5032,7 @@
       if (currentOffset < totalWidth * 0.5) {
         currentOffset += totalWidth;
         targetOffset += totalWidth;
+        skyWrapCycles -= 1;
 
         if (buttonTweenActive) {
           if (buttonTweenZoomActive) {
@@ -5254,6 +5990,7 @@
       showBackButton(false);
       setFrameButtonsVisible(true);
       setHotspotsVisible(true);
+      setReflectionVisible(true);
       releaseParallax();
       restoreThumbnailFeatureAfterSequence();
       showSequenceLottie(false);
@@ -5370,6 +6107,10 @@
         throw new Error(`Sequence frame buffer is incomplete for ${config.hotspotText}.`);
       }
 
+      if (direction === 1) {
+        setReflectionVisible(false);
+      }
+
       activeSequence = config;
       sequenceLottieCard.classList.toggle("is-neo-lumber", config.key === "neoLumber");
       freezePanoramaBackground();
@@ -5457,7 +6198,7 @@
       }, true, responsiveOffsetX, targetFrameSize);
     }
 
-    function animate() {
+    function animate(now = performance.now()) {
       requestAnimationFrame(animate);
 
       hoverPauseStrength += (hoverPauseTarget - hoverPauseStrength) * 0.08;
@@ -5485,13 +6226,56 @@
         }
       }
 
+      updateScrollParallax();
       updatePanorama();
+      updateSky();
+      updateReflection();
+      updateForeground(now);
       updateHotspots();
-      updateHotspotConnector(performance.now());
+      updateHotspotConnector(now);
       updateScenePlaneTransform();
       wrapOffsetsIfNeeded();
       updateActiveFrameButton();
     }
+
+    /*
+      Cross-origin fallback: wheel and one-finger vertical swipes are observed
+      passively, so Elementor/WordPress keeps complete control of page scrolling.
+      We only mirror that motion into the background parallax amount.
+    */
+    window.addEventListener("wheel", (event) => {
+      if (parentScrollParallaxLinked || !isMainPanoramaPage()) return;
+      nudgeScrollParallax(Number(event.deltaY || 0));
+    }, { passive: true });
+
+    window.addEventListener("touchstart", (event) => {
+      if (parentScrollParallaxLinked || !event.touches?.length) return;
+      touchScrollParallaxLastY = event.touches[0].clientY;
+    }, { passive: true });
+
+    window.addEventListener("touchmove", (event) => {
+      if (
+        parentScrollParallaxLinked ||
+        touchScrollParallaxLastY === null ||
+        !event.touches?.length ||
+        !isMainPanoramaPage()
+      ) {
+        return;
+      }
+
+      const currentTouchY = event.touches[0].clientY;
+      const scrollLikeDeltaY = touchScrollParallaxLastY - currentTouchY;
+      touchScrollParallaxLastY = currentTouchY;
+      nudgeScrollParallax(scrollLikeDeltaY);
+    }, { passive: true });
+
+    const clearTouchScrollParallax = () => {
+      touchScrollParallaxLastY = null;
+    };
+    window.addEventListener("touchend", clearTouchScrollParallax, { passive: true });
+    window.addEventListener("touchcancel", clearTouchScrollParallax, { passive: true });
+
+    tryLinkParentScrollParallax();
 
     container.addEventListener("pointerenter", (event) => {
       updatePointerPosition(event);
@@ -5726,6 +6510,8 @@
           sourcePointAtViewportCenter * frameWidth - nextViewport.width / 2;
         targetOffset = currentOffset;
         lastAppliedViewportSize = nextViewport;
+        scrollParallaxTargetY = clampScrollParallaxTarget(scrollParallaxTargetY);
+        scrollParallaxY = clampScrollParallaxTarget(scrollParallaxY);
 
         buttonTweenActive = false;
         buttonTweenZoomActive = false;
@@ -5749,6 +6535,8 @@
         }
 
         updatePanorama();
+        updateReflection();
+        updateForeground(performance.now());
         updateHotspots();
         updateHotspotConnector();
         updateActiveFrameButton();
@@ -6238,8 +7026,12 @@
     setMultiLottieMode(false);
     resetMultiLottieNavigation();
 
+    preloadReflectionLayer();
+    preloadForegroundSequence();
+
     buildPanoramaStrip();
     updatePanorama();
+    updateSky();
     updateHotspots();
     animate();
 
