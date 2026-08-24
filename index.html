@@ -64,6 +64,95 @@
       pointer-events: auto;
     }
 
+    /* ================================================================
+       INITIAL VIEWER LOADER
+       Covers the iframe only while the assets needed for the first panorama
+       view are loading. The thumbnail/connector startup animation begins only
+       after this overlay has completely faded away.
+       ================================================================ */
+    #initialLoadingOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transition:
+        opacity 0.72s cubic-bezier(0.4, 0, 0.2, 1),
+        visibility 0.72s linear;
+    }
+
+    #initialLoadingOverlay.is-fading {
+      opacity: 0;
+      visibility: visible;
+      pointer-events: none;
+    }
+
+    #initialLoadingOverlay.is-hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    #initialLoadingMark {
+      position: relative;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+    }
+
+    #initialLoadingMark::before,
+    #initialLoadingMark::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      box-sizing: border-box;
+    }
+
+    #initialLoadingMark::before {
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    #initialLoadingMark::after {
+      border: 1.5px solid transparent;
+      border-top-color: rgba(255, 255, 255, 0.96);
+      border-right-color: rgba(255, 255, 255, 0.42);
+      animation: initialLoaderSpin 1.05s cubic-bezier(0.55, 0.05, 0.45, 0.95) infinite;
+    }
+
+    #initialLoadingDot {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #fff;
+      transform: translate(-50%, -50%) scale(0.72);
+      opacity: 0.74;
+      animation: initialLoaderPulse 1.05s ease-in-out infinite;
+    }
+
+    @keyframes initialLoaderSpin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes initialLoaderPulse {
+      0%, 100% {
+        transform: translate(-50%, -50%) scale(0.62);
+        opacity: 0.46;
+      }
+      50% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+      }
+    }
+
     /*
       sky.jpg sits behind the three main panorama frames. It uses the same
       source-image horizontal scale as the 1920px-wide panorama artwork, but
@@ -2129,6 +2218,12 @@
 </head>
 
 <body>
+  <div id="initialLoadingOverlay" aria-label="Loading panorama" role="status">
+    <div id="initialLoadingMark" aria-hidden="true">
+      <span id="initialLoadingDot"></span>
+    </div>
+  </div>
+
   <div id="viewer">
     <div id="scenePlane">
       <div id="skyLayer" aria-hidden="true"></div>
@@ -2268,6 +2363,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
   <script>
+    const initialLoadingOverlay = document.getElementById("initialLoadingOverlay");
     const container = document.getElementById("viewer");
     const scenePlane = document.getElementById("scenePlane");
     const skyLayer = document.getElementById("skyLayer");
@@ -2325,6 +2421,7 @@
     let connectorOutgoingHotspot = null;
     let connectorTransitionStart = 0;
     let connectorTransitioning = false;
+    let startupThumbnailRevealActive = false;
     const connectorTransitionDuration = 850;
 
     const frameFolder = "180";
@@ -4442,6 +4539,60 @@
       hoverPauseTarget = strongestHoverPause > 0.1 ? 1 : 0;
     }
 
+    async function preloadInitialPanoramaArtwork() {
+      const initialArtworkSources = [...frames, "sky.jpg"];
+
+      const results = await Promise.all(
+        initialArtworkSources.map((src) =>
+          loadDecodedSequenceImage(src)
+            .then(() => true)
+            .catch((error) => {
+              console.error(`Initial panorama asset could not be loaded: ${src}`, error);
+              return false;
+            })
+        )
+      );
+
+      return results.every(Boolean);
+    }
+
+    async function waitForInitialViewerAssets() {
+      /*
+        Wait only for what is needed to render the initial panorama cleanly.
+        Product-specific click-through sequences continue preloading afterward
+        so the startup screen does not become unnecessarily long.
+      */
+      await Promise.all([
+        preloadInitialPanoramaArtwork(),
+        preloadForegroundSequence(),
+        preloadReflectionLayer(),
+        preloadAllHotspotThumbnails()
+      ]);
+    }
+
+    function waitForNextPaint() {
+      return new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      );
+    }
+
+    async function fadeOutInitialLoadingOverlay() {
+      if (!initialLoadingOverlay) return;
+
+      /* Give the fully decoded scene two paints before revealing it. */
+      updatePanorama();
+      updateSky();
+      updateForeground();
+      updateReflection();
+      updateHotspots();
+      await waitForNextPaint();
+
+      initialLoadingOverlay.classList.add("is-fading");
+      await waitForDelay(760);
+      initialLoadingOverlay.classList.remove("is-fading");
+      initialLoadingOverlay.classList.add("is-hidden");
+    }
+
     function preloadAllHotspotThumbnails() {
       const uniqueNames = Array.from(
         new Set(
@@ -4549,9 +4700,12 @@
       */
       await preloadAllHotspotThumbnails();
 
-      autoRotate = false;
-      panVelocity = 0;
-      targetOffset = currentOffset;
+      /*
+        Keep the panorama's existing auto-pan running throughout the startup
+        thumbnail/connector reveal. The startup feature is purely an overlay and
+        must never interrupt camera motion.
+      */
+      startupThumbnailRevealActive = true;
       setPanToggleVisible(false);
 
       updatePanorama();
@@ -4560,6 +4714,7 @@
       const focusHotspot = getClosestVisibleHotspotToCenter();
       if (!focusHotspot) {
         hotspotFocusCircle.classList.remove("startup-hidden");
+        startupThumbnailRevealActive = false;
         setPanToggleVisible(true);
         return;
       }
@@ -4604,11 +4759,8 @@
         );
       }
 
+      startupThumbnailRevealActive = false;
       setPanToggleVisible(true);
-
-      if (!userPausedAutoRotate && isMainPanoramaPage()) {
-        autoRotate = true;
-      }
     }
 
     function getHotspotThumbnailName(hotspot) {
@@ -4937,7 +5089,17 @@
         connectorTransitioning = true;
         setActiveHotspotButton(connectorActiveHotspot);
         updateHotspotThumbnail(connectorActiveHotspot);
-      } else if (focusHotspot !== connectorActiveHotspot) {
+      } else if (
+        !startupThumbnailRevealActive &&
+        focusHotspot !== connectorActiveHotspot
+      ) {
+        /*
+          During the one-time startup reveal, keep the connector attached to the
+          hotspot selected when the reveal began even though the panorama keeps
+          moving. This prevents the introductory line/thumbnail from swapping
+          targets halfway through its animation. Normal nearest-hotspot tracking
+          resumes immediately afterward.
+        */
         connectorOutgoingHotspot = connectorActiveHotspot;
         connectorActiveHotspot = focusHotspot;
         connectorTransitionStart = now;
@@ -7036,16 +7198,36 @@
     setMultiLottieMode(false);
     resetMultiLottieNavigation();
 
-    preloadReflectionLayer();
-    preloadForegroundSequence();
+    async function startViewer() {
+      buildPanoramaStrip();
+      updatePanorama();
+      updateSky();
+      updateHotspots();
+      animate();
 
-    buildPanoramaStrip();
-    updatePanorama();
-    updateSky();
-    updateHotspots();
-    animate();
+      /*
+        Keep the viewer black until the initial scene is genuinely ready.
+        The thumbnail-circle/connector sequence intentionally begins only after
+        the black overlay has finished fading, so the user still sees it.
+      */
+      await waitForInitialViewerAssets();
+      await fadeOutInitialLoadingOverlay();
+      await revealInitialThumbnailFeature();
 
-    revealInitialThumbnailFeature();
+    }
+
+    startViewer().catch((error) => {
+      console.error("The panorama viewer could not complete startup.", error);
+
+      if (initialLoadingOverlay) {
+        initialLoadingOverlay.classList.add("is-fading");
+        setTimeout(() => {
+          initialLoadingOverlay.classList.remove("is-fading");
+          initialLoadingOverlay.classList.add("is-hidden");
+          revealInitialThumbnailFeature();
+        }, 760);
+      }
+    });
   </script>
 </body>
 
