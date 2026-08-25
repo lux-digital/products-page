@@ -2873,12 +2873,16 @@
 
     function getVisibleViewportSize() {
       /*
-        Embedded touch viewers must follow the iframe layout viewport, not the
-        browser's moving visual viewport. Standalone mobile Safari still benefits
-        from visualViewport because its visible height genuinely changes when the
-        URL/tab bars open or close.
+        An embedded viewer must always follow the iframe's real layout box.
+        Elementor can cause visualViewport to report short-lived geometry changes
+        while the parent page/header settles even though the iframe itself has not
+        meaningfully changed. Those transient values were enough to rebuild the
+        panorama at sequence-return time and create an extra alignment pan.
+
+        Standalone mobile Safari still benefits from visualViewport because its
+        visible height genuinely changes when the URL/tab bars open or close.
       */
-      if (isViewerEmbedded() && hasTouchViewportInput()) {
+      if (isViewerEmbedded()) {
         return getLayoutViewportSize();
       }
 
@@ -6114,11 +6118,20 @@
       if (transitionToken !== sequenceReturnTransitionToken) return;
 
       resetSequenceFrameToDefault(finishedSequence);
-      await waitForPaintFrames(3);
-      await waitForDelay(70);
+
+      /*
+        Restore the masked screen-space reflection while frame 00 is still an
+        opaque cover. The sequence artwork already contains its rendered
+        reflections, so revealing the panorama only after the live reflection
+        canvas is painted removes the old reflectionless intermediate frame.
+      */
+      setReflectionVisible(true);
+      updatePanorama();
+      updateReflection();
+      await waitForPaintFrames(2);
       if (transitionToken !== sequenceReturnTransitionToken) return;
 
-      /* Crossfade sequence frame 00 into the matching panorama frame. */
+      /* Crossfade frame 00 directly into panorama + live reflection together. */
       sequenceReturnOverlay.classList.remove("is-visible");
       sequenceReturnOverlay.classList.add("is-fading");
 
@@ -6151,26 +6164,27 @@
       showSequencePlaybackCanvas(false);
 
       /*
-        Mobile portrait entered the sequence with the camera centred on the
-        hotspot rather than on the panorama frame origin. Frame 00 already
-        blends back into the panorama at that exact hotspot-centred offset, so
-        do not start another left/right camera move after the reverse finishes.
+        Do not run an alignment pan merely because a sequence just ended.
+        Standalone desktop, Elementor desktop, and portrait now finish the
+        reverse at the same camera geometry they entered with, so they can hand
+        straight back to the normal automatic pan.
 
-        Landscape and desktop still need their existing return animation to
-        restore the normal browsing frame size and alignment.
+        Mobile landscape is the one layout that intentionally zooms from its
+        height-fit browsing view into cover mode for a sequence. Only that case
+        needs a real browse-layout restore after reverse playback.
       */
-      if (isMobilePortraitSequenceLayout()) {
+      if (sequenceCameraZoomed && isMobileLandscapeSequenceLayout()) {
+        await animatePanoramaToBrowseLayout(
+          sequenceReturnZoomDuration,
+          finishedSequence.frame
+        );
+      } else {
         sequenceCameraZoomed = false;
         buttonTweenActive = false;
         buttonTweenZoomActive = false;
         autoRotate = false;
         panVelocity = 0;
         targetOffset = currentOffset;
-      } else {
-        await animatePanoramaToBrowseLayout(
-          sequenceReturnZoomDuration,
-          finishedSequence.frame
-        );
       }
 
       sequenceLottieCard.classList.remove("is-neo-lumber");
@@ -6182,7 +6196,7 @@
       showBackButton(false);
       setFrameButtonsVisible(true);
       setHotspotsVisible(true);
-      setReflectionVisible(true);
+      /* Reflection was already restored underneath the return crossfade. */
       releaseParallax();
       restoreThumbnailFeatureAfterSequence();
       showSequenceLottie(false);
@@ -6194,7 +6208,8 @@
         sequenceLottieAnimation.goToAndStop(0, true);
       }
 
-      scheduleAutoRotateResume(1500);
+      /* Resume the main panorama motion almost immediately after the handoff. */
+      scheduleAutoRotateResume(80);
     }
 
     function stopSequencePlayback() {
@@ -6375,8 +6390,7 @@
       clearPendingArrivalCallback();
 
       const targetFrameSize =
-        isMobileLandscapeSequenceLayout() ||
-        shouldFitEmbeddedDesktopHeight()
+        isMobileLandscapeSequenceLayout()
           ? getCoverPanoFrameSize()
           : null;
       const responsiveOffsetX = getResponsiveSequenceOffsetX(
@@ -6691,11 +6705,19 @@
 
         /*
           If a genuine iframe/orientation resize occurs while a sequence is open,
-          retain cover mode and recalculate the exact sequence/panorama alignment.
+          keep the sequence in the same layout policy that was used when it began.
+          Mobile landscape still uses cover mode. Embedded desktop stays on the
+          normal height-fit browsing geometry, so Elementor cannot silently force
+          a cover-mode camera state that later requires a second return pan.
         */
         if (activeSequence) {
-          sequenceCameraZoomed = true;
-          applyPanoFrameSize(getCoverPanoFrameSize());
+          const sequenceUsesCoverLayout = isMobileLandscapeSequenceLayout();
+          sequenceCameraZoomed = sequenceUsesCoverLayout;
+          applyPanoFrameSize(
+            sequenceUsesCoverLayout
+              ? getCoverPanoFrameSize()
+              : getBrowsePanoFrameSize()
+          );
           updateSequenceViewportCrop(sequenceFocusHotspot, activeSequence);
           const destinationOffsetX =
             getResponsiveSequenceOffsetX(activeSequence, frameWidth) +
@@ -6724,11 +6746,11 @@
     window.addEventListener("resize", handleViewportResize);
 
     /*
-      visualViewport resize is useful when the viewer runs as a standalone page,
-      but must not drive geometry inside an embedded touch iframe. In that case
-      browser-bar movement belongs to the parent page and is not a viewer resize.
+      visualViewport is useful only for the standalone page. Inside Elementor (or
+      any iframe), ResizeObserver on #viewer is the authoritative geometry source.
+      This prevents parent/header viewport noise from retriggering sequence layout.
     */
-    if (!(isViewerEmbedded() && hasTouchViewportInput())) {
+    if (!isViewerEmbedded()) {
       window.visualViewport?.addEventListener("resize", handleViewportResize);
     }
 
@@ -6932,8 +6954,7 @@
       sequenceFocusHotspot = hotspot;
       updateSequenceViewportCrop(hotspot, config);
       const targetFrameSize =
-        isMobileLandscapeSequenceLayout() ||
-        shouldFitEmbeddedDesktopHeight()
+        isMobileLandscapeSequenceLayout()
           ? getCoverPanoFrameSize()
           : null;
       const destinationOffsetX =
