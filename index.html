@@ -2786,6 +2786,13 @@
     let sequenceRAF = null;
     let sequenceLastTime = 0;
     let sequenceReturnTransitionToken = 0;
+    /*
+      Locks iframe/ResizeObserver geometry while frame 00 is being handed back
+      to the panorama. Elementor can report small layout changes during this
+      exact window; applying them mid-fade makes two otherwise matching layers
+      use different dimensions.
+    */
+    let sequenceReturnTransitionActive = false;
     const panoramaFrameReadyPromises = new Map();
 
     let sequenceLottieAnimation = null;
@@ -6088,6 +6095,9 @@
       const src = image?.src || config?.frames?.[index];
       if (!src) return;
 
+      /* Clear any inline values left by the previous JavaScript-driven handoff. */
+      sequenceReturnOverlay.style.removeProperty("opacity");
+      sequenceReturnOverlay.style.removeProperty("transition");
       sequenceReturnOverlay.style.left = `${-sequenceViewportCropX}px`;
       sequenceReturnOverlay.style.top = `${panoStripTop}px`;
       sequenceReturnOverlay.style.width = `${frameWidth}px`;
@@ -6098,96 +6108,197 @@
       sequenceReturnOverlay.setAttribute("aria-hidden", "false");
     }
 
+    function clearSequenceReturnOverlayInlineGeometry() {
+      sequenceReturnOverlay.style.removeProperty("left");
+      sequenceReturnOverlay.style.removeProperty("top");
+      sequenceReturnOverlay.style.removeProperty("width");
+      sequenceReturnOverlay.style.removeProperty("height");
+      sequenceReturnOverlay.style.removeProperty("opacity");
+      sequenceReturnOverlay.style.removeProperty("transition");
+    }
+
     function hideSequenceReturnOverlayImmediately() {
       sequenceReturnTransitionToken += 1;
+      sequenceReturnTransitionActive = false;
       sequenceReturnOverlay.classList.remove("is-visible", "is-fading");
       sequenceReturnOverlay.style.removeProperty("background-image");
+      clearSequenceReturnOverlayInlineGeometry();
       sequenceReturnOverlay.setAttribute("aria-hidden", "true");
     }
 
     async function completeReverseSequenceTransition(finishedSequence) {
       const transitionToken = ++sequenceReturnTransitionToken;
+      sequenceReturnTransitionActive = true;
 
-      /* Keep sequence frame 00 visible before changing the panorama below it. */
+      /*
+        IMPORTANT: frame 00 and the panorama must use identical geometry for the
+        entire handoff. The embedded Elementor browse panorama can be height-fit
+        while the sequence is full-screen cover; switching only the panorama to
+        browse geometry before fading is what caused the dev-site misalignment.
+      */
       showSequenceReturnOverlay(finishedSequence, 0);
       await waitForPaintFrames(1);
       showSequencePlaybackCanvas(false);
 
-      /* Decode the panorama source first, then restore it beneath the cover. */
       await ensurePanoramaFrameReady(finishedSequence.frame);
-      if (transitionToken !== sequenceReturnTransitionToken) return;
+      if (transitionToken !== sequenceReturnTransitionToken) {
+        sequenceReturnTransitionActive = false;
+        return;
+      }
 
       resetSequenceFrameToDefault(finishedSequence);
 
-      /*
-        The sequence itself always runs in full-screen cover mode, but the normal
-        panorama may use a different responsive browse size (notably Elementor
-        desktop and mobile landscape). Restore that browse geometry NOW, while
-        frame 00 is still an opaque full-screen cover. This preserves the old
-        edge-safe sequence playback without bringing back the visible post-reverse
-        alignment pan/pause.
-      */
-      const sequenceReturnFrameWidth = frameWidth;
-      const sequenceReturnFrameHeight = frameHeight;
-      const sequenceReturnFrameTop = panoStripTop;
+      const startSize = {
+        width: frameWidth,
+        height: frameHeight,
+        top: panoStripTop
+      };
       const browseSize = getBrowsePanoFrameSize();
-      const browseGeometryDiffers =
-        Math.abs(browseSize.width - sequenceReturnFrameWidth) > 0.5 ||
-        Math.abs(browseSize.height - sequenceReturnFrameHeight) > 0.5 ||
-        Math.abs(browseSize.top - sequenceReturnFrameTop) > 0.5;
-
-      if (browseGeometryDiffers) {
-        const startCameraUnit = currentOffset / Math.max(1, sequenceReturnFrameWidth);
-        const browseFrameUnit =
-          getClosestCameraUnitForFrame(finishedSequence.frame, startCameraUnit) +
-          getResponsiveSequenceOffsetX(finishedSequence, browseSize.width) / browseSize.width;
-
-        sequenceCameraZoomed = false;
-        applyPanoFrameSize(browseSize);
-        currentOffset = browseFrameUnit * frameWidth;
-        targetOffset = currentOffset;
-      } else {
-        /*
-          Portrait/normal 16:9 layouts already use the same cover geometry. Keep
-          the exact camera offset (including any portrait hotspot crop) untouched.
-        */
-        sequenceCameraZoomed = false;
-        targetOffset = currentOffset;
-      }
+      const startFrameWidth = Math.max(1, startSize.width);
+      const startCameraUnit = currentOffset / startFrameWidth;
+      const returnFrameUnit = getClosestCameraUnitForFrame(
+        finishedSequence.frame,
+        startCameraUnit
+      );
+      const startResponsiveOffsetX = getResponsiveSequenceOffsetX(
+        finishedSequence,
+        startFrameWidth
+      );
+      const startCropX = sequenceViewportCropX;
 
       /*
-        Restore the masked screen-space reflection while frame 00 is still an
-        opaque cover. The sequence artwork already contains its rendered
-        reflections, so revealing the panorama only after the live reflection
-        canvas is painted removes the old reflectionless intermediate frame.
+        Preserve any tiny residual alignment error rather than snapping it away.
+        Normally this is zero; keeping it makes the handoff robust to fractional
+        CSS pixels and device-pixel-ratio rounding inside Elementor.
+      */
+      const startResidualX =
+        currentOffset -
+        (returnFrameUnit * startFrameWidth + startResponsiveOffsetX + startCropX);
+
+      sequenceCameraZoomed = true;
+      buttonTweenActive = false;
+      buttonTweenZoomActive = false;
+      autoRotate = false;
+      panVelocity = 0;
+      targetOffset = currentOffset;
+
+      /*
+        Paint the live masked reflection while frame 00 is still completely opaque.
+        This keeps the reflection handoff invisible, just as in the previous fix.
       */
       setReflectionVisible(true);
       updatePanorama();
       updateReflection();
       await waitForPaintFrames(2);
-      if (transitionToken !== sequenceReturnTransitionToken) return;
+      if (transitionToken !== sequenceReturnTransitionToken) {
+        sequenceReturnTransitionActive = false;
+        return;
+      }
 
-      /* Crossfade frame 00 directly into panorama + live reflection together. */
-      sequenceReturnOverlay.classList.remove("is-visible");
-      sequenceReturnOverlay.classList.add("is-fading");
+      /*
+        One continuous handoff does three things together:
+        1) fades sequence frame 00 away,
+        2) morphs cover geometry back to the responsive browse geometry, and
+        3) continues the normal horizontal panorama drift.
+
+        Because the overlay geometry and panorama geometry are recalculated from
+        the SAME frame unit on every animation frame, they cannot drift apart
+        during the fade even when Elementor's browse size differs from cover mode.
+      */
+      const handoffDuration = 680;
+      const handoffStartTime = performance.now();
+      const continueMainPan = !userPausedAutoRotate;
+      const handoffPanSpeed = continueMainPan
+        ? autoRotateSpeed * autoRotateDirection * (1 - hoverPauseStrength)
+        : 0;
+
+      sequenceReturnOverlay.style.transition = "none";
+      sequenceReturnOverlay.style.opacity = "1";
 
       await new Promise((resolve) => {
-        let settled = false;
-        const finish = () => {
-          if (settled) return;
-          settled = true;
-          sequenceReturnOverlay.removeEventListener("transitionend", finish);
-          resolve();
+        const step = (now) => {
+          if (transitionToken !== sequenceReturnTransitionToken) {
+            resolve();
+            return;
+          }
+
+          const elapsed = Math.max(0, now - handoffStartTime);
+          const progress = Math.min(elapsed / handoffDuration, 1);
+          const geometryProgress = easeInOutQuint(progress);
+          const fadeProgress = easeInOutSine(progress);
+
+          const nextSize = {
+            width:
+              startSize.width +
+              (browseSize.width - startSize.width) * geometryProgress,
+            height:
+              startSize.height +
+              (browseSize.height - startSize.height) * geometryProgress,
+            top:
+              startSize.top +
+              (browseSize.top - startSize.top) * geometryProgress
+          };
+
+          applyPanoFrameSize(nextSize);
+
+          const widthScale = frameWidth / startFrameWidth;
+          const cropX = startCropX * widthScale;
+          const residualX = startResidualX * widthScale;
+          const responsiveOffsetX = getResponsiveSequenceOffsetX(
+            finishedSequence,
+            frameWidth
+          );
+          const handoffPanX =
+            handoffPanSpeed * (elapsed / (1000 / 60));
+
+          currentOffset =
+            returnFrameUnit * frameWidth +
+            responsiveOffsetX +
+            cropX +
+            residualX +
+            handoffPanX;
+          targetOffset = currentOffset;
+
+          /*
+            Position frame 00 from the exact on-screen location of the matching
+            panorama frame, compensating for sequence source offsets. This is more
+            reliable than assuming left:0 inside fractional-width iframes.
+          */
+          const matchingFrameScreenX =
+            returnFrameUnit * frameWidth - currentOffset;
+          const overlayLeft = matchingFrameScreenX + responsiveOffsetX;
+
+          sequenceReturnOverlay.style.left = `${overlayLeft}px`;
+          sequenceReturnOverlay.style.top = `${panoStripTop}px`;
+          sequenceReturnOverlay.style.width = `${frameWidth}px`;
+          sequenceReturnOverlay.style.height = `${frameHeight}px`;
+          sequenceReturnOverlay.style.opacity = `${1 - fadeProgress}`;
+
+          updatePanorama();
+          updateReflection();
+
+          if (progress < 1) {
+            requestAnimationFrame(step);
+          } else {
+            resolve();
+          }
         };
 
-        sequenceReturnOverlay.addEventListener("transitionend", finish, { once: true });
-        setTimeout(finish, 800);
+        requestAnimationFrame(step);
       });
 
-      if (transitionToken !== sequenceReturnTransitionToken) return;
+      if (transitionToken !== sequenceReturnTransitionToken) {
+        sequenceReturnTransitionActive = false;
+        return;
+      }
 
-      sequenceReturnOverlay.classList.remove("is-fading");
+      sequenceCameraZoomed = false;
+      applyPanoFrameSize(browseSize);
+      targetOffset = currentOffset;
+
+      sequenceReturnOverlay.classList.remove("is-visible", "is-fading");
       sequenceReturnOverlay.style.removeProperty("background-image");
+      clearSequenceReturnOverlayInlineGeometry();
       sequenceReturnOverlay.setAttribute("aria-hidden", "true");
 
       /* Release the completed sequence after both directions finish so later
@@ -6199,11 +6310,6 @@
       sequenceViewportCropX = 0;
       showSequencePlaybackCanvas(false);
 
-      /*
-        Browse geometry was already restored invisibly beneath the opaque frame-00
-        return cover above. Do not perform any second visible alignment/zoom move.
-      */
-      sequenceCameraZoomed = false;
       buttonTweenActive = false;
       buttonTweenZoomActive = false;
       autoRotate = false;
@@ -6219,7 +6325,6 @@
       showBackButton(false);
       setFrameButtonsVisible(true);
       setHotspotsVisible(true);
-      /* Reflection was already restored underneath the return crossfade. */
       releaseParallax();
       restoreThumbnailFeatureAfterSequence();
       showSequenceLottie(false);
@@ -6231,8 +6336,20 @@
         sequenceLottieAnimation.goToAndStop(0, true);
       }
 
-      /* Resume the main panorama motion almost immediately after the handoff. */
-      scheduleAutoRotateResume(80);
+      sequenceReturnTransitionActive = false;
+
+      /*
+        Apply a genuine resize that happened during the handoff only after both
+        layers are finished. Elementor's tiny mid-transition observer noise can no
+        longer alter one layer without altering the other.
+      */
+      applyDeferredViewportResize();
+
+      if (!userPausedAutoRotate && !isDragging && isMainPanoramaPage()) {
+        autoRotate = true;
+      } else {
+        scheduleAutoRotateResume(40);
+      }
     }
 
     function stopSequencePlayback() {
@@ -6667,6 +6784,17 @@
     let lastAppliedViewportSize = getVisibleViewportSize();
 
     function handleViewportResize() {
+      /*
+        Never let ResizeObserver/window resize rebuild only the panorama while
+        frame 00 is crossfading back into it. Elementor can emit fractional
+        iframe-size changes during this exact interval. Defer them until the
+        locked two-layer handoff has finished.
+      */
+      if (sequenceReturnTransitionActive) {
+        deferredViewportResize = true;
+        return;
+      }
+
       /*
         Never rebuild the panorama geometry in the middle of a horizontal touch
         drag. Safari can emit resize events while deciding what to do with the
