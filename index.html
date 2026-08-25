@@ -2956,34 +2956,21 @@
       }
     }
 
-    function shouldFitEmbeddedDesktopHeight() {
-      if (!isViewerEmbedded()) return false;
-
-      const viewport = getVisibleViewportSize();
-      const desktopPointer =
-        window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-      const landscapeViewport = viewport.width > viewport.height;
-
-      /*
-        The homepage iframe is shorter than a normal fullscreen 16:9 window
-        because the website header remains above it. Fit the panorama to the
-        iframe height so both the upper hotspots and bottom controls stay visible.
-      */
-      return desktopPointer && landscapeViewport;
-    }
-
     function getBrowsePanoFrameSize() {
       const viewport = getVisibleViewportSize();
 
-      if (
-        shouldFitMobileLandscapeHeight() ||
-        shouldFitEmbeddedDesktopHeight()
-      ) {
-        /*
-          Fit the complete 16:9 artwork to the available viewer height. The
-          panorama is a continuous strip, so an extra-wide viewport reveals
-          neighbouring panorama content at the sides instead of empty space.
-        */
+      /*
+        IMPORTANT: embedded desktop must use the same 16:9 cover geometry as
+        hotspot sequences. The old Elementor-specific height-fit rule made the
+        normal panorama smaller than the sequence whenever the site header made
+        the iframe wider/shorter than 16:9. That forced a visible zoom-in before
+        every sequence and a matching zoom-out on return.
+
+        Mobile landscape keeps its special height-fit handling for browser-chrome
+        edge cases. Desktop/Elementor now stays in cover mode continuously, so a
+        hotspot transition only needs to pan to its matching frame.
+      */
+      if (shouldFitMobileLandscapeHeight()) {
         return {
           width: viewport.height * panoFrameAspectRatio,
           height: viewport.height,
