@@ -2455,8 +2455,8 @@
       The sky and foreground canvas stay screen-fixed, creating the requested
       layered depth.
     */
-    const scrollParallaxStrength = 0.18;
-    const scrollParallaxMaxSourceY = 120;
+    const scrollParallaxStrength = 0.28;
+    const scrollParallaxMaxSourceY = 170;
     let scrollParallaxY = 0;
     let parentScrollParallaxLinked = false;
     let parentScrollParallaxWindow = null;
@@ -6120,6 +6120,42 @@
       resetSequenceFrameToDefault(finishedSequence);
 
       /*
+        The sequence itself always runs in full-screen cover mode, but the normal
+        panorama may use a different responsive browse size (notably Elementor
+        desktop and mobile landscape). Restore that browse geometry NOW, while
+        frame 00 is still an opaque full-screen cover. This preserves the old
+        edge-safe sequence playback without bringing back the visible post-reverse
+        alignment pan/pause.
+      */
+      const sequenceReturnFrameWidth = frameWidth;
+      const sequenceReturnFrameHeight = frameHeight;
+      const sequenceReturnFrameTop = panoStripTop;
+      const browseSize = getBrowsePanoFrameSize();
+      const browseGeometryDiffers =
+        Math.abs(browseSize.width - sequenceReturnFrameWidth) > 0.5 ||
+        Math.abs(browseSize.height - sequenceReturnFrameHeight) > 0.5 ||
+        Math.abs(browseSize.top - sequenceReturnFrameTop) > 0.5;
+
+      if (browseGeometryDiffers) {
+        const startCameraUnit = currentOffset / Math.max(1, sequenceReturnFrameWidth);
+        const browseFrameUnit =
+          getClosestCameraUnitForFrame(finishedSequence.frame, startCameraUnit) +
+          getResponsiveSequenceOffsetX(finishedSequence, browseSize.width) / browseSize.width;
+
+        sequenceCameraZoomed = false;
+        applyPanoFrameSize(browseSize);
+        currentOffset = browseFrameUnit * frameWidth;
+        targetOffset = currentOffset;
+      } else {
+        /*
+          Portrait/normal 16:9 layouts already use the same cover geometry. Keep
+          the exact camera offset (including any portrait hotspot crop) untouched.
+        */
+        sequenceCameraZoomed = false;
+        targetOffset = currentOffset;
+      }
+
+      /*
         Restore the masked screen-space reflection while frame 00 is still an
         opaque cover. The sequence artwork already contains its rendered
         reflections, so revealing the panorama only after the live reflection
@@ -6164,28 +6200,15 @@
       showSequencePlaybackCanvas(false);
 
       /*
-        Do not run an alignment pan merely because a sequence just ended.
-        Standalone desktop, Elementor desktop, and portrait now finish the
-        reverse at the same camera geometry they entered with, so they can hand
-        straight back to the normal automatic pan.
-
-        Mobile landscape is the one layout that intentionally zooms from its
-        height-fit browsing view into cover mode for a sequence. Only that case
-        needs a real browse-layout restore after reverse playback.
+        Browse geometry was already restored invisibly beneath the opaque frame-00
+        return cover above. Do not perform any second visible alignment/zoom move.
       */
-      if (sequenceCameraZoomed && isMobileLandscapeSequenceLayout()) {
-        await animatePanoramaToBrowseLayout(
-          sequenceReturnZoomDuration,
-          finishedSequence.frame
-        );
-      } else {
-        sequenceCameraZoomed = false;
-        buttonTweenActive = false;
-        buttonTweenZoomActive = false;
-        autoRotate = false;
-        panVelocity = 0;
-        targetOffset = currentOffset;
-      }
+      sequenceCameraZoomed = false;
+      buttonTweenActive = false;
+      buttonTweenZoomActive = false;
+      autoRotate = false;
+      panVelocity = 0;
+      targetOffset = currentOffset;
 
       sequenceLottieCard.classList.remove("is-neo-lumber");
       sequenceMenuRevealed = false;
@@ -6389,13 +6412,16 @@
       clearAutoRotateRestart();
       clearPendingArrivalCallback();
 
-      const targetFrameSize =
-        isMobileLandscapeSequenceLayout()
-          ? getCoverPanoFrameSize()
-          : null;
+      /*
+        Every image sequence is rendered as full-screen 16:9 cover artwork.
+        Never inherit the responsive browse height-fit geometry here: on wide
+        Elementor/iframe layouts that would make the sequence narrower than the
+        viewport and expose neighbouring panorama content at its edges.
+      */
+      const targetFrameSize = getCoverPanoFrameSize();
       const responsiveOffsetX = getResponsiveSequenceOffsetX(
         config,
-        targetFrameSize?.width || frameWidth
+        targetFrameSize.width
       );
 
       moveToFrame(config.frame, () => {
@@ -6704,20 +6730,13 @@
         clearPendingArrivalCallback();
 
         /*
-          If a genuine iframe/orientation resize occurs while a sequence is open,
-          keep the sequence in the same layout policy that was used when it began.
-          Mobile landscape still uses cover mode. Embedded desktop stays on the
-          normal height-fit browsing geometry, so Elementor cannot silently force
-          a cover-mode camera state that later requires a second return pan.
+          A sequence is always full-screen cover artwork, regardless of whether
+          the browsing panorama is height-fit inside Elementor. Recalculate that
+          cover geometry on every genuine resize so frame edges can never appear.
         */
         if (activeSequence) {
-          const sequenceUsesCoverLayout = isMobileLandscapeSequenceLayout();
-          sequenceCameraZoomed = sequenceUsesCoverLayout;
-          applyPanoFrameSize(
-            sequenceUsesCoverLayout
-              ? getCoverPanoFrameSize()
-              : getBrowsePanoFrameSize()
-          );
+          sequenceCameraZoomed = true;
+          applyPanoFrameSize(getCoverPanoFrameSize());
           updateSequenceViewportCrop(sequenceFocusHotspot, activeSequence);
           const destinationOffsetX =
             getResponsiveSequenceOffsetX(activeSequence, frameWidth) +
@@ -6953,14 +6972,16 @@
       */
       sequenceFocusHotspot = hotspot;
       updateSequenceViewportCrop(hotspot, config);
-      const targetFrameSize =
-        isMobileLandscapeSequenceLayout()
-          ? getCoverPanoFrameSize()
-          : null;
+      /*
+        Hotspot sequences must always cover the complete viewer. The first
+        sequence frame is authored at 16:9, so wider viewports crop top/bottom
+        rather than shrinking the sequence and revealing panorama edges.
+      */
+      const targetFrameSize = getCoverPanoFrameSize();
       const destinationOffsetX =
         getResponsiveSequenceOffsetX(
           config,
-          targetFrameSize?.width || frameWidth
+          targetFrameSize.width
         ) + sequenceViewportCropX;
 
       /*
