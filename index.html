@@ -2467,6 +2467,22 @@
     let externalParentScrollBridgeLinked = false;
 
     /*
+      Hotspot/page-scroll handshake.
+
+      A hotspot image sequence is authored for the panorama's neutral Y position.
+      If Elementor is partially scrolled, the background panorama is vertically
+      displaced while the screen-fixed foreground is not. Before entering a
+      sequence, ask the parent page to return to its top and wait for confirmation
+      that the scroll/parallax baseline has genuinely settled.
+    */
+    const hotspotPageTopRequestType = "LUX_PANORAMA_REQUEST_PAGE_TOP";
+    const hotspotPageTopReadyType = "LUX_PANORAMA_PAGE_TOP_READY";
+    let hotspotPageTopRequestId = 0;
+    let hotspotPageTopResetActive = false;
+    let pendingHotspotAfterPageTop = null;
+    let hotspotPageTopFallbackTimer = null;
+
+    /*
       Animated foreground parallax layers.
 
       WATER foreground:
@@ -4364,13 +4380,44 @@
       if (event.source !== window.parent) return;
 
       const data = event.data;
-      if (!data || data.type !== "LUX_PANORAMA_PAGE_POSITION") return;
+      if (!data) return;
+
+      if (data.type === hotspotPageTopReadyType) {
+        const requestId = Number(data.requestId);
+        if (!Number.isFinite(requestId)) return;
+
+        const frameTop = Number(data.frameTop);
+        const startFrameTop = Number(data.startFrameTop);
+
+        if (Number.isFinite(frameTop)) {
+          externalParentFrameTop = frameTop;
+        }
+
+        if (Number.isFinite(startFrameTop)) {
+          externalParentStartFrameTop = startFrameTop;
+        }
+
+        externalParentScrollBridgeLinked = true;
+        finishHotspotPageTopReset(requestId);
+        return;
+      }
+
+      if (data.type !== "LUX_PANORAMA_PAGE_POSITION") return;
 
       const frameTop = Number(data.frameTop);
       if (!Number.isFinite(frameTop)) return;
 
+      const startFrameTop = Number(data.startFrameTop);
+
       externalParentFrameTop = frameTop;
-      if (externalParentStartFrameTop === null) {
+      if (Number.isFinite(startFrameTop)) {
+        /*
+          Elementor supplies the iframe's document-space top on every frame.
+          This is a more reliable zero-parallax baseline than whichever scroll
+          position happened to deliver the very first postMessage.
+        */
+        externalParentStartFrameTop = startFrameTop;
+      } else if (externalParentStartFrameTop === null) {
         externalParentStartFrameTop = frameTop;
       }
       externalParentScrollBridgeLinked = true;
@@ -6183,21 +6230,17 @@
       }
 
       /*
-        One continuous handoff does three things together:
-        1) fades sequence frame 00 away,
-        2) morphs cover geometry back to the responsive browse geometry, and
-        3) continues the normal horizontal panorama drift.
+        Keep the camera completely frozen while sequence frame 00 fades away.
 
-        Because the overlay geometry and panorama geometry are recalculated from
-        the SAME frame unit on every animation frame, they cannot drift apart
-        during the fade even when Elementor's browse size differs from cover mode.
+        The foreground travels at 2x the panorama speed. Allowing even a small
+        horizontal drift during this crossfade makes the live foreground move a
+        few pixels ahead of the foreground already rendered into frame 00, which
+        creates a visible ghosted edge. The fade may still reconcile responsive
+        frame geometry, but there is deliberately NO panorama travel until the
+        overlay is fully gone.
       */
       const handoffDuration = 680;
       const handoffStartTime = performance.now();
-      const continueMainPan = !userPausedAutoRotate;
-      const handoffPanSpeed = continueMainPan
-        ? autoRotateSpeed * autoRotateDirection * (1 - hoverPauseStrength)
-        : 0;
 
       sequenceReturnOverlay.style.transition = "none";
       sequenceReturnOverlay.style.opacity = "1";
@@ -6235,15 +6278,11 @@
             finishedSequence,
             frameWidth
           );
-          const handoffPanX =
-            handoffPanSpeed * (elapsed / (1000 / 60));
-
           currentOffset =
             returnFrameUnit * frameWidth +
             responsiveOffsetX +
             cropX +
-            residualX +
-            handoffPanX;
+            residualX;
           targetOffset = currentOffset;
 
           /*
@@ -6331,6 +6370,13 @@
         longer alter one layer without altering the other.
       */
       applyDeferredViewportResize();
+
+      /*
+        Give the fully restored panorama + foreground one complete paint with the
+        return overlay already gone before automatic panning is allowed to move
+        either layer. This makes the fade finish cleanly, then motion resumes.
+      */
+      await waitForPaintFrames(1);
 
       if (!userPausedAutoRotate && !isDragging && isMainPanoramaPage()) {
         autoRotate = true;
@@ -7031,7 +7077,159 @@
       });
     });
 
+    function shouldReturnPageTopBeforeHotspot() {
+      if (!isMainPanoramaPage()) return false;
+
+      /*
+        Ignore sub-pixel noise. Anything larger than this is enough to make the
+        screen-fixed foreground disagree visibly with a sequence's baked frame.
+      */
+      if (Math.abs(scrollParallaxY) <= 0.6) return false;
+
+      return parentScrollParallaxLinked || externalParentScrollBridgeLinked;
+    }
+
+    function paintNeutralScrollParallaxImmediately() {
+      scrollParallaxY = 0;
+
+      if (Number.isFinite(externalParentStartFrameTop)) {
+        externalParentFrameTop = externalParentStartFrameTop;
+      }
+
+      if (
+        parentScrollParallaxLinked &&
+        parentScrollParallaxFrameElement &&
+        typeof parentScrollParallaxFrameElement.getBoundingClientRect === "function"
+      ) {
+        parentScrollParallaxStartFrameTop = Number(
+          parentScrollParallaxFrameElement.getBoundingClientRect().top
+        );
+      }
+
+      updatePanorama();
+      updateReflection();
+      updateForeground(performance.now());
+      updateHotspots();
+      updateHotspotConnector(performance.now());
+    }
+
+    function finishHotspotPageTopReset(requestId) {
+      if (!hotspotPageTopResetActive) return;
+      if (Number(requestId) !== hotspotPageTopRequestId) return;
+
+      hotspotPageTopResetActive = false;
+
+      if (hotspotPageTopFallbackTimer) {
+        clearTimeout(hotspotPageTopFallbackTimer);
+        hotspotPageTopFallbackTimer = null;
+      }
+
+      const hotspot = pendingHotspotAfterPageTop;
+      pendingHotspotAfterPageTop = null;
+
+      /*
+        The parent has reached page-top. Paint two fully neutral frames before
+        beginning the horizontal hotspot pan so every live panorama layer is
+        exactly aligned with sequence frame 00.
+      */
+      paintNeutralScrollParallaxImmediately();
+
+      requestAnimationFrame(() => {
+        paintNeutralScrollParallaxImmediately();
+
+        requestAnimationFrame(() => {
+          if (!hotspot) return;
+          if (sequencePlaying || activeSequence || sequencePreparing) return;
+          activateHotspotNow(hotspot);
+        });
+      });
+    }
+
+    function requestPageTopForHotspot(hotspot) {
+      if (!hotspot || hotspotPageTopResetActive) return;
+
+      hotspotPageTopResetActive = true;
+      pendingHotspotAfterPageTop = hotspot;
+      hotspotPageTopRequestId += 1;
+      const requestId = hotspotPageTopRequestId;
+
+      /* Stop horizontal motion while the WordPress page returns to its baseline. */
+      freezePanoramaBackground();
+
+      if (parentScrollParallaxLinked && parentScrollParallaxWindow) {
+        /* Same-origin embeds can scroll their parent directly. */
+        try {
+          parentScrollParallaxWindow.scrollTo({
+            top: 0,
+            left: 0,
+            behavior: "smooth"
+          });
+
+          const startedAt = performance.now();
+          const waitForSameOriginTop = () => {
+            if (!hotspotPageTopResetActive || requestId !== hotspotPageTopRequestId) return;
+
+            const scrollY = Number(
+              parentScrollParallaxWindow.scrollY ||
+              parentScrollParallaxWindow.pageYOffset ||
+              0
+            );
+
+            if (Math.abs(scrollY) <= 1 || performance.now() - startedAt > 1800) {
+              if (parentScrollParallaxFrameElement) {
+                const frameTop = Number(
+                  parentScrollParallaxFrameElement.getBoundingClientRect().top
+                );
+                parentScrollParallaxStartFrameTop = frameTop;
+              }
+              finishHotspotPageTopReset(requestId);
+              return;
+            }
+
+            requestAnimationFrame(waitForSameOriginTop);
+          };
+
+          requestAnimationFrame(waitForSameOriginTop);
+        } catch (error) {
+          /* Fall through to the cross-origin message bridge below. */
+          window.parent.postMessage(
+            { type: hotspotPageTopRequestType, requestId },
+            "*"
+          );
+        }
+      } else if (isViewerEmbedded()) {
+        /* Elementor/GitHub is cross-origin, so the parent performs the scroll. */
+        window.parent.postMessage(
+          { type: hotspotPageTopRequestType, requestId },
+          "*"
+        );
+      } else {
+        finishHotspotPageTopReset(requestId);
+        return;
+      }
+
+      /*
+        Safety fallback: never leave a hotspot permanently blocked if an older
+        embed does not yet understand the new handshake.
+      */
+      hotspotPageTopFallbackTimer = setTimeout(() => {
+        finishHotspotPageTopReset(requestId);
+      }, 2200);
+    }
+
     function activateHotspot(hotspot) {
+      if (sequencePlaying || activeSequence || sequencePreparing) return;
+      if (hotspotPageTopResetActive) return;
+
+      if (shouldReturnPageTopBeforeHotspot()) {
+        requestPageTopForHotspot(hotspot);
+        return;
+      }
+
+      activateHotspotNow(hotspot);
+    }
+
+    function activateHotspotNow(hotspot) {
       if (sequencePlaying || activeSequence || sequencePreparing) return;
 
       const hotspotKey = normalizeHotspotKey(hotspot.text || hotspot.label || hotspot.title);
