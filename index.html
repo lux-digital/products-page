@@ -194,7 +194,8 @@
       Screen-space reflection for frame0001 and frame0002. reflection.png stays
       fixed while each frame's luminance mask follows the panorama.
     */
-    #reflectionCanvas {
+    #reflectionCanvas,
+    #reflectionDisplacementCanvas {
       position: absolute;
       inset: 0;
       width: 100%;
@@ -203,6 +204,10 @@
       display: block;
       pointer-events: none;
       image-rendering: auto;
+    }
+
+    #reflectionDisplacementCanvas {
+      visibility: hidden;
     }
 
     #foregroundCanvas {
@@ -2229,6 +2234,7 @@
       <div id="skyLayer" aria-hidden="true"></div>
       <div id="panoramaStrip"></div>
       <canvas id="reflectionCanvas" aria-hidden="true"></canvas>
+      <canvas id="reflectionDisplacementCanvas" aria-hidden="true"></canvas>
       <canvas id="foregroundCanvas" aria-hidden="true"></canvas>
 
       <!-- Hotspots -->
@@ -2370,6 +2376,7 @@
     const panoramaStrip = document.getElementById("panoramaStrip");
     const reflectionCanvas = document.getElementById("reflectionCanvas");
     const reflectionContext = reflectionCanvas.getContext("2d", { alpha: true });
+    const reflectionDisplacementCanvas = document.getElementById("reflectionDisplacementCanvas");
     const foregroundCanvas = document.getElementById("foregroundCanvas");
     const foregroundContext = foregroundCanvas.getContext("2d", { alpha: true });
     const frameButtonsWrapper = document.getElementById("frameButtons");
@@ -2566,39 +2573,64 @@
     /*
       Reflection assets live beside this index file.
 
-      The same screen-fixed "reflection.png" is used for:
-      - frame0000 with "reaflection_mask_03.jpg"
-      - frame0001 with "reaflection_mask_02.jpg"
-      - frame0002 with "reaflection_mask.jpg"
+      The ORIGINAL masks still control where reflection.png is visible:
+      - frame0000: reaflection_mask_03.jpg
+      - frame0001: reaflection_mask_02.jpg
+      - frame0002: reaflection_mask.jpg
 
-      Each JPG mask moves with its own panorama frame while reflection.png itself
-      remains fixed in screen space.
+      Each mask has a matching grayscale displacement JPG:
+      - frame0000: reaflection_disp_03.jpg
+      - frame0001: reaflection_disp_02.jpg
+      - frame0002: reaflection_disp.jpg
+
+      50% gray = no displacement.
+      Darker = move sampled reflection left/up.
+      Lighter = move sampled reflection right/down.
     */
     const reflectionImageSource = "reflection.png";
+
+    /*
+      Deliberately strong while we verify the effect. Once you can clearly see
+      the distortion, this can be reduced to something like 8–20.
+    */
+    const reflectionDisplacementStrength = 55;
+
     const reflectionLayerConfigs = [
       {
         frameIndex: 0,
         maskSource: "reaflection_mask_03.jpg",
+        displacementSource: "reaflection_disp_03.jpg",
         maskImage: null,
-        maskAlphaCanvas: null
+        maskAlphaCanvas: null,
+        displacementImage: null
       },
       {
         frameIndex: 1,
         maskSource: "reaflection_mask_02.jpg",
+        displacementSource: "reaflection_disp_02.jpg",
         maskImage: null,
-        maskAlphaCanvas: null
+        maskAlphaCanvas: null,
+        displacementImage: null
       },
       {
         frameIndex: 2,
         maskSource: "reaflection_mask.jpg",
+        displacementSource: "reaflection_disp.jpg",
         maskImage: null,
-        maskAlphaCanvas: null
+        maskAlphaCanvas: null,
+        displacementImage: null
       }
     ];
+
     let reflectionImage = null;
     let reflectionReady = false;
     let reflectionVisible = true;
     let reflectionLoadPromise = null;
+
+    let reflectionDisplacementLoadPromise = null;
+    let reflectionWebGL = null;
+    let reflectionWebGLReady = false;
+    let reflectionWebGLFailed = false;
 
     /*
       Sequence setup.
@@ -2623,14 +2655,14 @@
     // Each selected sequence must fully load and decode before either direction plays.
     const sequenceConfigs = [
       { key: "customCut", frame: 0, hotspotText: "CUSTOM CUT", folder: "CUSTOM CUT", prefix: "CUSTOM CUT", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/v-groove-steel-siding/" },
-      { key: "randomPlank", frame: 0, hotspotText: "RANDOM PLANK", folder: "RANDOM PLANK", prefix: "RANDOM PLANK", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/random-plank/" },
+      { key: "randomPlank", frame: 0, hotspotText: "RANDOM PLANK", folder: "RANDOM PLANK", prefix: "RANDOM PLANK", count: 65, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/random-plank/" },
       { key: "metalCraft", frame: 1, hotspotText: "METAL CRAFT", folder: "METAL CRAFT", prefix: "METAL CRAFT", count: 51, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/metal-craft-series/" },
       { key: "boardBatten", frame: 2, hotspotText: "BOARD + BATTEN", folder: "BOARD + BATTEN", prefix: "BOARD + BATTEN", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/board-and-batten/" },
       { key: "boardBatten02", frame: 2, hotspotText: "BOARD + BATTEN", folder: "BOARD + BATTEN 02", prefix: "BOARD + BATTEN", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/board-and-batten/" },
       { key: "soffit", frame: 2, hotspotText: "SOFFIT", folder: "SOFFIT", prefix: "SOFFIT", count: 48, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/soffit/" },
       { key: "luxLap", frame: 2, hotspotText: "LUX LAP", folder: "LUX LAP", prefix: "LUX LAP", count: 32, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/lux-lap-cladding-panel/" },
       { key: "channelSiding", frame: 2, hotspotText: "CHANNEL SIDING", folder: "CHANNEL SIDING", prefix: "CHANNEL SIDING", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/channel-siding/" },
-      { key: "neoLumber", frame: 0, hotspotText: "NEO LUMBER", folder: "NEO LUMBER", prefix: "NEO LUMBER", count: 40, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/neo-lumber/" }
+      { key: "neoLumber", frame: 0, hotspotText: "NEO LUMBER", folder: "NEO LUMBER", prefix: "NEO LUMBER", count: 65, pad: 2, extension: "jpg", fps: 24, learnMoreUrl: "https://luxarpro.com/neo-lumber/" }
     ];
 
     const sequenceByFrame = new Map();
@@ -3644,20 +3676,560 @@
       return maskCanvas;
     }
 
+    function compileReflectionShader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const message = gl.getShaderInfoLog(shader) || "Reflection shader compile failed.";
+        gl.deleteShader(shader);
+        throw new Error(message);
+      }
+
+      return shader;
+    }
+
+    function linkReflectionProgram(gl, vertexSource, fragmentSource) {
+      const vertexShader = compileReflectionShader(gl, gl.VERTEX_SHADER, vertexSource);
+      const fragmentShader = compileReflectionShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+      const program = gl.createProgram();
+
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      gl.linkProgram(program);
+
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
+
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        const message = gl.getProgramInfoLog(program) || "Reflection shader link failed.";
+        gl.deleteProgram(program);
+        throw new Error(message);
+      }
+
+      return program;
+    }
+
+    function uploadReflectionTexture(gl, image) {
+      const texture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+
+      /*
+        Keep the HTML-image top-left orientation. Our shader also uses y=0 as
+        the top of the 1920x1080 artwork, so mask and displacement coordinates
+        remain pixel-for-pixel aligned.
+      */
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        image
+      );
+
+      return texture;
+    }
+
+    function initializeReflectionWebGL() {
+      if (reflectionWebGLReady) return true;
+      if (reflectionWebGLFailed) return false;
+
+      if (
+        !reflectionDisplacementCanvas ||
+        !reflectionImage ||
+        !reflectionLayerConfigs.every(
+          (config) => config.maskImage && config.displacementImage
+        )
+      ) {
+        return false;
+      }
+
+      try {
+        const gl =
+          reflectionDisplacementCanvas.getContext("webgl", {
+            alpha: true,
+            antialias: false,
+            premultipliedAlpha: false,
+            preserveDrawingBuffer: false,
+            powerPreference: "high-performance"
+          }) ||
+          reflectionDisplacementCanvas.getContext("experimental-webgl", {
+            alpha: true,
+            antialias: false,
+            premultipliedAlpha: false,
+            preserveDrawingBuffer: false
+          });
+
+        if (!gl) {
+          throw new Error("WebGL is not available in this browser.");
+        }
+
+        /*
+          One full-screen quad. All panorama-frame lookup, mask lookup and
+          displacement-map lookup happens in the fragment shader.
+        */
+        const vertexSource = `
+          attribute vec2 a_clipPosition;
+          attribute vec2 a_screenUv;
+
+          varying vec2 v_screenUv;
+
+          void main() {
+            gl_Position = vec4(a_clipPosition, 0.0, 1.0);
+            v_screenUv = a_screenUv;
+          }
+        `;
+
+        const fragmentSource = `
+          precision highp float;
+
+          uniform sampler2D u_reflection;
+          uniform sampler2D u_mask0;
+          uniform sampler2D u_mask1;
+          uniform sampler2D u_mask2;
+          uniform sampler2D u_disp0;
+          uniform sampler2D u_disp1;
+          uniform sampler2D u_disp2;
+
+          uniform vec2 u_viewportPx;
+          uniform float u_frameWidthPx;
+          uniform float u_frameHeightPx;
+          uniform float u_totalWidthPx;
+          uniform float u_currentOffsetPx;
+          uniform float u_panoTopPx;
+          uniform float u_maskParallaxYPx;
+          uniform float u_strengthPx;
+
+          varying vec2 v_screenUv;
+
+          float luminance(vec3 rgb) {
+            return dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+          }
+
+          float positiveMod(float value, float divisor) {
+            return value - floor(value / divisor) * divisor;
+          }
+
+          vec4 sampleMask(float frameIndex, vec2 uv) {
+            if (frameIndex < 0.5) return texture2D(u_mask0, uv);
+            if (frameIndex < 1.5) return texture2D(u_mask1, uv);
+            return texture2D(u_mask2, uv);
+          }
+
+          vec4 sampleDisplacement(float frameIndex, vec2 uv) {
+            if (frameIndex < 0.5) return texture2D(u_disp0, uv);
+            if (frameIndex < 1.5) return texture2D(u_disp1, uv);
+            return texture2D(u_disp2, uv);
+          }
+
+          void main() {
+            vec2 screenPx = v_screenUv * u_viewportPx;
+
+            /*
+              The masks/displacement maps follow the vertically parallaxed
+              panorama. reflection.png itself stays fixed in screen space.
+            */
+            float maskY =
+              screenPx.y - (u_panoTopPx + u_maskParallaxYPx);
+
+            if (maskY < 0.0 || maskY >= u_frameHeightPx) {
+              discard;
+            }
+
+            /*
+              Convert this screen pixel back into the repeating three-frame
+              panorama. This is the exact same geometry that positions the
+              original masks, so the displacement JPG cannot drift from its mask.
+            */
+            float panoramaWorldX =
+              positiveMod(screenPx.x + u_currentOffsetPx, u_totalWidthPx);
+
+            float frameIndex =
+              floor(panoramaWorldX / u_frameWidthPx);
+
+            float localX =
+              positiveMod(panoramaWorldX, u_frameWidthPx);
+
+            vec2 localUv = vec2(
+              localX / u_frameWidthPx,
+              maskY / u_frameHeightPx
+            );
+
+            float maskAlpha =
+              luminance(sampleMask(frameIndex, localUv).rgb);
+
+            if (maskAlpha <= 0.002) {
+              discard;
+            }
+
+            /*
+              A grayscale displacement map only has one scalar value. Use that
+              value on both axes so it is unmistakably visible:
+                50% gray = zero
+                black     = left/up
+                white     = right/down
+
+              The unequal Y multiplier avoids a rigid 45-degree translation and
+              makes gradients visibly bend/warp the reflection.
+            */
+            float displacement =
+              (luminance(sampleDisplacement(frameIndex, localUv).rgb) - 0.5) * 2.0;
+
+            vec2 displacementPx = vec2(
+              displacement * u_strengthPx,
+              displacement * u_strengthPx * 0.72
+            );
+
+            /*
+              reflection.png is screen-fixed and is drawn at:
+                x = 0
+                y = panoStripTop
+                width = frameWidth
+                height = frameHeight
+
+              Distort the sampling position, not the mask position.
+            */
+            vec2 reflectionUv = vec2(
+              (screenPx.x + displacementPx.x) / u_frameWidthPx,
+              (screenPx.y - u_panoTopPx + displacementPx.y) / u_frameHeightPx
+            );
+
+            if (
+              reflectionUv.x < 0.0 ||
+              reflectionUv.x > 1.0 ||
+              reflectionUv.y < 0.0 ||
+              reflectionUv.y > 1.0
+            ) {
+              discard;
+            }
+
+            vec4 reflectionPixel =
+              texture2D(u_reflection, reflectionUv);
+
+            gl_FragColor = vec4(
+              reflectionPixel.rgb,
+              reflectionPixel.a * maskAlpha
+            );
+          }
+        `;
+
+        const program = linkReflectionProgram(
+          gl,
+          vertexSource,
+          fragmentSource
+        );
+
+        const clipBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, clipBuffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array([
+            -1,  1,
+             1,  1,
+            -1, -1,
+            -1, -1,
+             1,  1,
+             1, -1
+          ]),
+          gl.STATIC_DRAW
+        );
+
+        const uvBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, uvBuffer);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array([
+            0, 0,
+            1, 0,
+            0, 1,
+            0, 1,
+            1, 0,
+            1, 1
+          ]),
+          gl.STATIC_DRAW
+        );
+
+        const maskTextures = reflectionLayerConfigs.map(
+          (config) => uploadReflectionTexture(gl, config.maskImage)
+        );
+        const displacementTextures = reflectionLayerConfigs.map(
+          (config) => uploadReflectionTexture(gl, config.displacementImage)
+        );
+
+        reflectionWebGL = {
+          gl,
+          program,
+          clipBuffer,
+          uvBuffer,
+          reflectionTexture: uploadReflectionTexture(gl, reflectionImage),
+          maskTextures,
+          displacementTextures,
+
+          aClipPosition: gl.getAttribLocation(program, "a_clipPosition"),
+          aScreenUv: gl.getAttribLocation(program, "a_screenUv"),
+
+          uViewportPx: gl.getUniformLocation(program, "u_viewportPx"),
+          uFrameWidthPx: gl.getUniformLocation(program, "u_frameWidthPx"),
+          uFrameHeightPx: gl.getUniformLocation(program, "u_frameHeightPx"),
+          uTotalWidthPx: gl.getUniformLocation(program, "u_totalWidthPx"),
+          uCurrentOffsetPx: gl.getUniformLocation(program, "u_currentOffsetPx"),
+          uPanoTopPx: gl.getUniformLocation(program, "u_panoTopPx"),
+          uMaskParallaxYPx: gl.getUniformLocation(program, "u_maskParallaxYPx"),
+          uStrengthPx: gl.getUniformLocation(program, "u_strengthPx")
+        };
+
+        gl.useProgram(program);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, clipBuffer);
+        gl.enableVertexAttribArray(reflectionWebGL.aClipPosition);
+        gl.vertexAttribPointer(
+          reflectionWebGL.aClipPosition,
+          2,
+          gl.FLOAT,
+          false,
+          0,
+          0
+        );
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, uvBuffer);
+        gl.enableVertexAttribArray(reflectionWebGL.aScreenUv);
+        gl.vertexAttribPointer(
+          reflectionWebGL.aScreenUv,
+          2,
+          gl.FLOAT,
+          false,
+          0,
+          0
+        );
+
+        /*
+          Fixed texture-unit assignments.
+        */
+        gl.uniform1i(gl.getUniformLocation(program, "u_reflection"), 0);
+        gl.uniform1i(gl.getUniformLocation(program, "u_mask0"), 1);
+        gl.uniform1i(gl.getUniformLocation(program, "u_mask1"), 2);
+        gl.uniform1i(gl.getUniformLocation(program, "u_mask2"), 3);
+        gl.uniform1i(gl.getUniformLocation(program, "u_disp0"), 4);
+        gl.uniform1i(gl.getUniformLocation(program, "u_disp1"), 5);
+        gl.uniform1i(gl.getUniformLocation(program, "u_disp2"), 6);
+
+        gl.disable(gl.DEPTH_TEST);
+        gl.disable(gl.CULL_FACE);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+        reflectionWebGLReady = true;
+        reflectionWebGLFailed = false;
+
+        console.info(
+          `[REFLECTION] Full-screen WebGL displacement ACTIVE (${reflectionDisplacementStrength}px test strength).`
+        );
+
+        return true;
+      } catch (error) {
+        console.error(
+          "[REFLECTION] WebGL displacement failed. Original reflections remain active.",
+          error
+        );
+
+        reflectionWebGL = null;
+        reflectionWebGLReady = false;
+        reflectionWebGLFailed = true;
+        return false;
+      }
+    }
+
+    function syncReflectionDisplacementCanvas(viewport) {
+      if (!reflectionWebGLReady || !reflectionWebGL) return;
+
+      /*
+        One GPU pixel per CSS pixel keeps this fast even on high-DPI displays.
+      */
+      const width = Math.max(1, Math.round(viewport.width));
+      const height = Math.max(1, Math.round(viewport.height));
+
+      reflectionDisplacementCanvas.style.width = `${viewport.width}px`;
+      reflectionDisplacementCanvas.style.height = `${viewport.height}px`;
+
+      if (
+        reflectionDisplacementCanvas.width !== width ||
+        reflectionDisplacementCanvas.height !== height
+      ) {
+        reflectionDisplacementCanvas.width = width;
+        reflectionDisplacementCanvas.height = height;
+      }
+    }
+
+    function renderDisplacedReflection(viewport) {
+      if (
+        !reflectionVisible ||
+        !reflectionWebGLReady ||
+        !reflectionWebGL
+      ) {
+        return false;
+      }
+
+      syncReflectionDisplacementCanvas(viewport);
+
+      const gl = reflectionWebGL.gl;
+      const program = reflectionWebGL.program;
+
+      gl.viewport(
+        0,
+        0,
+        reflectionDisplacementCanvas.width,
+        reflectionDisplacementCanvas.height
+      );
+
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+
+      gl.useProgram(program);
+
+      /*
+        Re-bind attributes because resizing a canvas changes the drawing buffer
+        and some browsers are more reliable when state is asserted each frame.
+      */
+      gl.bindBuffer(gl.ARRAY_BUFFER, reflectionWebGL.clipBuffer);
+      gl.enableVertexAttribArray(reflectionWebGL.aClipPosition);
+      gl.vertexAttribPointer(
+        reflectionWebGL.aClipPosition,
+        2,
+        gl.FLOAT,
+        false,
+        0,
+        0
+      );
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, reflectionWebGL.uvBuffer);
+      gl.enableVertexAttribArray(reflectionWebGL.aScreenUv);
+      gl.vertexAttribPointer(
+        reflectionWebGL.aScreenUv,
+        2,
+        gl.FLOAT,
+        false,
+        0,
+        0
+      );
+
+      gl.uniform2f(
+        reflectionWebGL.uViewportPx,
+        viewport.width,
+        viewport.height
+      );
+      gl.uniform1f(reflectionWebGL.uFrameWidthPx, frameWidth);
+      gl.uniform1f(reflectionWebGL.uFrameHeightPx, frameHeight);
+      gl.uniform1f(reflectionWebGL.uTotalWidthPx, totalWidth);
+      gl.uniform1f(reflectionWebGL.uCurrentOffsetPx, currentOffset);
+      gl.uniform1f(reflectionWebGL.uPanoTopPx, panoStripTop);
+      gl.uniform1f(
+        reflectionWebGL.uMaskParallaxYPx,
+        getActiveScrollParallaxY()
+      );
+      gl.uniform1f(
+        reflectionWebGL.uStrengthPx,
+        reflectionDisplacementStrength
+      );
+
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(
+        gl.TEXTURE_2D,
+        reflectionWebGL.reflectionTexture
+      );
+
+      reflectionWebGL.maskTextures.forEach((texture, index) => {
+        gl.activeTexture(gl.TEXTURE1 + index);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+      });
+
+      reflectionWebGL.displacementTextures.forEach((texture, index) => {
+        gl.activeTexture(gl.TEXTURE4 + index);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+      });
+
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+      const error = gl.getError();
+      if (error !== gl.NO_ERROR) {
+        console.error(
+          `[REFLECTION] WebGL draw error ${error}. Reverting to original reflections.`
+        );
+        reflectionWebGLReady = false;
+        reflectionWebGLFailed = true;
+        reflectionDisplacementCanvas.style.visibility = "hidden";
+        reflectionCanvas.style.visibility = "visible";
+        return false;
+      }
+
+      return true;
+    }
+
+    async function preloadReflectionDisplacement() {
+      if (reflectionWebGLReady) return true;
+      if (reflectionWebGLFailed) return false;
+      if (reflectionDisplacementLoadPromise) {
+        return reflectionDisplacementLoadPromise;
+      }
+
+      reflectionDisplacementLoadPromise = Promise.all(
+        reflectionLayerConfigs.map(
+          (config) => loadDecodedSequenceImage(config.displacementSource)
+        )
+      ).then((images) => {
+        reflectionLayerConfigs.forEach((config, index) => {
+          config.displacementImage = images[index];
+        });
+
+        const ok = initializeReflectionWebGL();
+        if (ok) updateReflection();
+        return ok;
+      }).catch((error) => {
+        console.error(
+          "[REFLECTION] One or more displacement JPGs could not be loaded. Original reflections remain active.",
+          error
+        );
+
+        reflectionWebGLFailed = true;
+        reflectionWebGLReady = false;
+        reflectionDisplacementLoadPromise = null;
+        return false;
+      });
+
+      return reflectionDisplacementLoadPromise;
+    }
+
     async function preloadReflectionLayer() {
       const masksReady = reflectionLayerConfigs.every(
         (config) => config.maskImage && config.maskAlphaCanvas
       );
 
       if (reflectionReady && reflectionImage && masksReady) {
+        if (!reflectionWebGLReady && !reflectionWebGLFailed) {
+          preloadReflectionDisplacement();
+        }
         return true;
       }
+
       if (reflectionLoadPromise) return reflectionLoadPromise;
 
+      /*
+        Original reflection assets only. Displacement is optional and loads
+        separately so it can never make the reflection disappear.
+      */
       reflectionLoadPromise = Promise.all([
         loadDecodedSequenceImage(reflectionImageSource),
-        ...reflectionLayerConfigs.map((config) =>
-          loadDecodedSequenceImage(config.maskSource)
+        ...reflectionLayerConfigs.map(
+          (config) => loadDecodedSequenceImage(config.maskSource)
         )
       ]).then(([loadedReflection, ...loadedMasks]) => {
         reflectionImage = loadedReflection;
@@ -3671,11 +4243,17 @@
 
         reflectionReady = true;
         updateReflection();
+
+        /*
+          Start GPU displacement after the normal reflection is already valid.
+        */
+        preloadReflectionDisplacement();
+
         return true;
       }).catch((error) => {
         console.error("The panorama reflection overlays could not be loaded.", error);
-        reflectionImage = null;
 
+        reflectionImage = null;
         reflectionLayerConfigs.forEach((config) => {
           config.maskImage = null;
           config.maskAlphaCanvas = null;
@@ -3716,23 +4294,72 @@
       return viewport;
     }
 
-    function setReflectionVisible(visible) {
-      reflectionVisible = Boolean(visible);
-      reflectionCanvas.style.visibility = reflectionVisible ? "visible" : "hidden";
+    function setReflectionLayerOpacity(opacity, duration = 0) {
+      const safeOpacity = Math.max(0, Math.min(Number(opacity) || 0, 1));
+      const safeDuration = Math.max(0, Math.round(Number(duration) || 0));
+      const transition = safeDuration > 0
+        ? `opacity ${safeDuration}ms ease-in-out`
+        : "none";
 
-      if (!reflectionVisible && reflectionContext) {
-        const viewport = syncReflectionCanvasSize();
-        reflectionContext.clearRect(0, 0, viewport.width, viewport.height);
-      } else if (reflectionVisible) {
-        updateReflection();
-      }
+      [reflectionCanvas, reflectionDisplacementCanvas].forEach((canvas) => {
+        if (!canvas) return;
+        canvas.style.transition = transition;
+        canvas.style.opacity = String(safeOpacity);
+      });
     }
 
-    function updateReflection() {
-      if (!reflectionCanvas || !reflectionContext) return;
+    function fadeReflectionOutForForwardSequence(cameraMoveDuration = 0) {
+      /*
+        Keep the live reflection visible at the beginning of the hotspot move,
+        then dissolve it over the same duration as the camera pan/zoom. The
+        reverse sequence handoff is intentionally untouched; it still restores
+        the reflection underneath frame 00 exactly where it did before.
+      */
+      reflectionVisible = true;
+      setReflectionLayerOpacity(1, 0);
+      updateReflection();
 
-      const viewport = syncReflectionCanvasSize();
-      reflectionContext.clearRect(0, 0, viewport.width, viewport.height);
+      const fadeDuration = Math.max(280, Math.round(Number(cameraMoveDuration) || 0));
+
+      requestAnimationFrame(() => {
+        setReflectionLayerOpacity(0, fadeDuration);
+      });
+    }
+
+    function setReflectionVisible(visible) {
+      reflectionVisible = Boolean(visible);
+
+      if (!reflectionVisible) {
+        reflectionCanvas.style.visibility = "hidden";
+        reflectionDisplacementCanvas.style.visibility = "hidden";
+
+        if (reflectionContext) {
+          const viewport = syncReflectionCanvasSize();
+          reflectionContext.clearRect(
+            0,
+            0,
+            viewport.width,
+            viewport.height
+          );
+        }
+        return;
+      }
+
+      /*
+        Restoring after a reverse sequence must remain immediate beneath the
+        opaque return frame, so clear any forward-fade styling before drawing.
+      */
+      setReflectionLayerOpacity(1, 0);
+      updateReflection();
+    }
+
+    function drawOriginalMaskedReflection(viewport) {
+      reflectionContext.clearRect(
+        0,
+        0,
+        viewport.width,
+        viewport.height
+      );
 
       const masksReady = reflectionLayerConfigs.every(
         (config) => config.maskAlphaCanvas
@@ -3751,22 +4378,23 @@
       reflectionContext.globalCompositeOperation = "source-over";
 
       /*
-        Draw both moving mask sets into one alpha boundary:
-        - frame0000 uses reaflection_mask_03.jpg
-        - frame0001 uses reaflection_mask_02.jpg
-        - frame0002 uses reaflection_mask.jpg
-
-        The panorama strip contains three copies, so each mask is drawn wherever
-        its matching panorama frame is currently visible.
+        This is the ORIGINAL mask renderer unchanged.
       */
       reflectionLayerConfigs.forEach((config) => {
         for (let repeat = 0; repeat < 3; repeat++) {
           const frameWorldX =
-            repeat * totalWidth + config.frameIndex * frameWidth;
+            repeat * totalWidth +
+            config.frameIndex * frameWidth;
+
           const screenX =
             frameWorldX - currentOffset;
 
-          if (screenX >= viewport.width || screenX + frameWidth <= 0) continue;
+          if (
+            screenX >= viewport.width ||
+            screenX + frameWidth <= 0
+          ) {
+            continue;
+          }
 
           reflectionContext.drawImage(
             config.maskAlphaCanvas,
@@ -3778,11 +4406,11 @@
         }
       });
 
-      /*
-        source-in keeps the moving masks as the alpha boundary. reflection.png
-        remains fixed in screen space for both frame0001 and frame0002.
-      */
       reflectionContext.globalCompositeOperation = "source-in";
+
+      /*
+        This is the ORIGINAL screen-fixed reflection.png placement unchanged.
+      */
       reflectionContext.drawImage(
         reflectionImage,
         0,
@@ -3792,6 +4420,46 @@
       );
 
       reflectionContext.restore();
+    }
+
+    function updateReflection() {
+      if (!reflectionCanvas || !reflectionContext) return;
+
+      const viewport = syncReflectionCanvasSize();
+
+      if (!reflectionVisible) {
+        reflectionCanvas.style.visibility = "hidden";
+        reflectionDisplacementCanvas.style.visibility = "hidden";
+        reflectionContext.clearRect(
+          0,
+          0,
+          viewport.width,
+          viewport.height
+        );
+        return;
+      }
+
+      /*
+        When the full-screen shader is active, it completely replaces only the
+        reflection drawing. Panorama, masks, foreground and every other layer are
+        untouched.
+      */
+      if (
+        reflectionWebGLReady &&
+        renderDisplacedReflection(viewport)
+      ) {
+        reflectionCanvas.style.visibility = "hidden";
+        reflectionDisplacementCanvas.style.visibility = "visible";
+        return;
+      }
+
+      /*
+        If WebGL is unavailable for any reason, retain the exact original
+        reflection instead of losing it.
+      */
+      reflectionDisplacementCanvas.style.visibility = "hidden";
+      reflectionCanvas.style.visibility = "visible";
+      drawOriginalMaskedReflection(viewport);
     }
 
     async function preloadSequence(config) {
@@ -3930,6 +4598,7 @@
         frame: 2,
         x: 13.57,
         y: 37.01,
+        offsetY: -15,
         title: "CHANNEL SIDING",
         text: "CHANNEL SIDING"
       },
@@ -3939,7 +4608,7 @@
         frame: 2,
         x: 46.79,
         y: 23.6,
-        offsetY: -30,
+        offsetY: -45,
         title: "SOFFIT",
         text: "SOFFIT"
       },
@@ -7312,6 +7981,7 @@
           sequenceViewportCropX = 0;
           showSequenceLoading(false);
           await animatePanoramaToBrowseLayout(700, config.frame);
+          setReflectionVisible(true);
           setFrameButtonsVisible(true);
           setHotspotsVisible(true);
           restoreThumbnailFeatureAfterSequence();
@@ -7330,6 +8000,9 @@
         forceParallaxNeutral();
         playSequence(config, 1);
       }, false, destinationOffsetX, targetFrameSize);
+
+      /* Fade the live reflection away while the camera travels to frame 00. */
+      fadeReflectionOutForForwardSequence(cameraMoveDuration);
 
       /*
         Do not reveal LOADING during a real camera move. If no move was needed,
