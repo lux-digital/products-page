@@ -2442,6 +2442,7 @@
     let recentThumbnailPanSpeed = 0;
     let connectorActiveHotspot = null;
     let connectorOutgoingHotspot = null;
+    let lastParentActiveProductKey = "";
     let connectorTransitionStart = 0;
     let connectorTransitioning = false;
     let startupThumbnailRevealActive = false;
@@ -2508,6 +2509,9 @@
     */
     const hotspotPageTopRequestType = "LUX_PANORAMA_REQUEST_PAGE_TOP";
     const hotspotPageTopReadyType = "LUX_PANORAMA_PAGE_TOP_READY";
+    const parentActiveProductType = "LUX_PANORAMA_ACTIVE_PRODUCT";
+    const parentPreviewProductType = "LUX_PANORAMA_PREVIEW_PRODUCT";
+    const parentLayoutRefreshType = "LUX_PANORAMA_LAYOUT_REFRESH";
     let hotspotPageTopRequestId = 0;
     let hotspotPageTopResetActive = false;
     let pendingHotspotAfterPageTop = null;
@@ -4719,6 +4723,27 @@
 
     frameButtons = Array.from(frameButtonsWrapper.querySelectorAll(".frameButton"));
 
+    function notifyParentOfActiveHotspot(hotspot) {
+      if (!isViewerEmbedded()) return;
+
+      const title = hotspot
+        ? String(hotspot.text || hotspot.label || hotspot.title || "").trim()
+        : "";
+      const key = normalizeHotspotKey(title);
+
+      if (key === lastParentActiveProductKey) return;
+      lastParentActiveProductKey = key;
+
+      window.parent.postMessage(
+        {
+          type: parentActiveProductType,
+          key,
+          title
+        },
+        "*"
+      );
+    }
+
     function setActiveHotspotButton(hotspot) {
       const key = hotspot
         ? normalizeHotspotKey(hotspot.text || hotspot.label || hotspot.title)
@@ -4730,6 +4755,9 @@
           Boolean(key) && button.dataset.hotspotKey === key
         );
       });
+
+      /* Keep the Elementor product rail synchronized with the connector target. */
+      notifyParentOfActiveHotspot(hotspot);
     }
 
     function getClosestOffsetForFrame(frameIndex) {
@@ -4769,12 +4797,53 @@
       return closestUnit;
     }
 
+    function previewHotspotFromParentMenu(hotspot) {
+      if (!hotspot) return;
+      if (!isMainPanoramaPage()) return;
+      if (sequencePlaying || activeSequence || sequencePreparing || hotspotPageTopResetActive) return;
+
+      const viewport = getVisibleViewportSize();
+      const hotspotLocalX = getHotspotLocalImageX(hotspot);
+      const destinationOffsetX = hotspotLocalX - viewport.width / 2;
+
+      /*
+        Hovering the desktop product rail is only a camera preview: it never opens
+        the hotspot or starts an image sequence. The parent already waits briefly
+        before sending this request, so casual mouse travel across the list is ignored.
+      */
+      freezePanoramaBackground();
+
+      const targetOffset =
+        getClosestOffsetForFrame(hotspot.frame) + destinationOffsetX;
+      const travel = Math.abs(targetOffset - currentOffset);
+      const previewDuration = Math.max(950, Math.min(1450, 900 + travel * 0.34));
+
+      moveToFrame(
+        hotspot.frame,
+        () => scheduleAutoRotateResume(1350),
+        false,
+        destinationOffsetX,
+        null,
+        previewDuration
+      );
+    }
+
+    function findHotspotByParentProductKey(value) {
+      const requestedKey = normalizeHotspotKey(value);
+      if (!requestedKey) return null;
+
+      return hotspots.find((hotspot) =>
+        normalizeHotspotKey(hotspot.text || hotspot.label || hotspot.title) === requestedKey
+      ) || null;
+    }
+
     function moveToFrame(
       frameIndex,
       onArrive = null,
       returnPlaneToNeutral = false,
       destinationOffsetX = 0,
-      targetFrameSize = null
+      targetFrameSize = null,
+      moveDuration = buttonTweenDuration
     ) {
       autoRotate = false;
       isDragging = false;
@@ -4892,7 +4961,7 @@
         return 0;
       }
 
-      buttonTweenCurrentDuration = buttonTweenDuration;
+      buttonTweenCurrentDuration = Math.max(1, Number(moveDuration) || buttonTweenDuration);
 
       if (returnPlaneToNeutral) {
         beginParallaxReturn(buttonTweenCurrentDuration);
@@ -5083,6 +5152,17 @@
 
       const data = event.data;
       if (!data) return;
+
+      if (data.type === parentPreviewProductType) {
+        const hotspot = findHotspotByParentProductKey(data.key || data.title);
+        if (hotspot) previewHotspotFromParentMenu(hotspot);
+        return;
+      }
+
+      if (data.type === parentLayoutRefreshType) {
+        handleViewportResize();
+        return;
+      }
 
       if (data.type === hotspotPageTopReadyType) {
         const requestId = Number(data.requestId);
