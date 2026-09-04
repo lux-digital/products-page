@@ -2511,6 +2511,7 @@
     const hotspotPageTopReadyType = "LUX_PANORAMA_PAGE_TOP_READY";
     const parentActiveProductType = "LUX_PANORAMA_ACTIVE_PRODUCT";
     const parentPreviewProductType = "LUX_PANORAMA_PREVIEW_PRODUCT";
+    const parentActivateProductType = "LUX_PANORAMA_ACTIVATE_PRODUCT";
     const parentLayoutRefreshType = "LUX_PANORAMA_LAYOUT_REFRESH";
     let hotspotPageTopRequestId = 0;
     let hotspotPageTopResetActive = false;
@@ -5156,6 +5157,12 @@
       if (data.type === parentPreviewProductType) {
         const hotspot = findHotspotByParentProductKey(data.key || data.title);
         if (hotspot) previewHotspotFromParentMenu(hotspot);
+        return;
+      }
+
+      if (data.type === parentActivateProductType) {
+        const hotspot = findHotspotByParentProductKey(data.key || data.title);
+        if (hotspot) activateHotspot(hotspot);
         return;
       }
 
