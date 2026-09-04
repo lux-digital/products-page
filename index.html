@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- LUX PANORAMA PRODUCTS SIDEBAR V3 - 2026-09-04 -->
+<!-- LUX PANORAMA PRODUCTS SIDEBAR V4 - 2026-09-04 -->
 <html lang="en">
 
 <head>
@@ -2386,7 +2386,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
   <script>
-    console.info("[LUX] Products sidebar V3 loaded");
+    console.info("[LUX] Products sidebar V6 loaded");
     const initialLoadingOverlay = document.getElementById("initialLoadingOverlay");
     const container = document.getElementById("viewer");
     const scenePlane = document.getElementById("scenePlane");
@@ -2900,6 +2900,14 @@
     let sequenceLoadingTimer = null;
     let sequenceBackTransitioning = false;
     let sequenceLottieIndependentReverse = false;
+
+    /*
+      Desktop PRODUCTS rail handoff. If a product is clicked while a sequence
+      or its MORE INFO window is active, remember the requested hotspot, reverse
+      the current experience back to the panorama, then activate this hotspot.
+      Repeated clicks simply replace the queued destination with the latest one.
+    */
+    let pendingParentHotspotAfterReturn = null;
 
     const metalCraftLottiePages = [
       { key: "metalCraft", label: "METAL CRAFT", path: "lottie/METAL%20CRAFT/METAL%20CRAFT.json" },
@@ -4803,7 +4811,7 @@
     function previewHotspotFromParentMenu(hotspot) {
       if (!hotspot) return;
       if (!isMainPanoramaPage()) return;
-      if (sequencePlaying || activeSequence || sequencePreparing || hotspotPageTopResetActive) return;
+      if (sequencePlaying || activeSequence || sequencePreparing || hotspotPageTopResetActive || pendingParentHotspotAfterReturn) return;
 
       const viewport = getVisibleViewportSize();
       const hotspotLocalX = getHotspotLocalImageX(hotspot);
@@ -4819,7 +4827,7 @@
       const targetOffset =
         getClosestOffsetForFrame(hotspot.frame) + destinationOffsetX;
       const travel = Math.abs(targetOffset - currentOffset);
-      const previewDuration = Math.max(950, Math.min(1450, 900 + travel * 0.34));
+      const previewDuration = Math.max(1350, Math.min(1950, 1200 + travel * 0.42));
 
       moveToFrame(
         hotspot.frame,
@@ -5164,7 +5172,39 @@
 
       if (data.type === parentActivateProductType) {
         const hotspot = findHotspotByParentProductKey(data.key || data.title);
-        if (hotspot) activateHotspot(hotspot);
+        if (!hotspot) return;
+
+        /*
+          A left-rail click must never feel dead. While a hotspot sequence, its
+          Lottie/MORE INFO window, or the reverse handoff is active, queue the
+          requested product. The current experience reverses first; once the
+          main panorama is fully restored, the queued hotspot activates normally.
+        */
+        if (
+          activeSequence ||
+          sequencePlaying ||
+          sequenceEndpointFadeActive ||
+          sequenceBackTransitioning ||
+          sequenceReturnTransitionActive
+        ) {
+          pendingParentHotspotAfterReturn = hotspot;
+          freezePanoramaBackground();
+
+          if (
+            activeSequence &&
+            !sequenceBackTransitioning &&
+            !sequenceReturnTransitionActive &&
+            !sequenceEndpointFadeActive
+          ) {
+            beginSequenceReturnToPanorama(true);
+          }
+          return;
+        }
+
+        /* Keep the existing preparation lock unchanged. */
+        if (sequencePreparing || hotspotPageTopResetActive) return;
+
+        activateHotspot(hotspot);
         return;
       }
 
@@ -7217,6 +7257,22 @@
       */
       await waitForPaintFrames(1);
 
+      /*
+        If the desktop PRODUCTS rail was clicked while the previous sequence was
+        active, continue seamlessly from the restored panorama into that hotspot.
+        activateHotspot() intentionally uses the normal page-top/parallax check,
+        camera pan, connector retraction, asset preparation and sequence playback.
+      */
+      const queuedHotspot = pendingParentHotspotAfterReturn;
+      if (queuedHotspot) {
+        pendingParentHotspotAfterReturn = null;
+        autoRotate = false;
+        panVelocity = 0;
+        targetOffset = currentOffset;
+        activateHotspot(queuedHotspot);
+        return;
+      }
+
       if (!userPausedAutoRotate && !isDragging && isMainPanoramaPage()) {
         autoRotate = true;
       } else {
@@ -7356,6 +7412,22 @@
         showBackButton(true);
         setFrameButtonsVisible(false);
         setHotspotsVisible(false);
+
+        /*
+          A PRODUCTS-rail click may have arrived during the final endpoint fade.
+          Once that fade is safely complete, begin the same reverse path as BACK.
+        */
+        if (
+          pendingParentHotspotAfterReturn &&
+          !sequenceBackTransitioning &&
+          !sequenceEndpointFadeActive
+        ) {
+          requestAnimationFrame(() => {
+            if (pendingParentHotspotAfterReturn && activeSequence) {
+              beginSequenceReturnToPanorama(true);
+            }
+          });
+        }
       } else {
         /*
           Reverse animation finished:
@@ -7426,7 +7498,7 @@
       sequenceRAF = requestAnimationFrame(sequenceStep);
     }
 
-    async function playSequence(config, direction = 1) {
+    async function playSequence(config, direction = 1, reverseStartIndex = null) {
       if (!config || sequencePlaying) return;
 
       if (direction === 1) {
@@ -7508,19 +7580,37 @@
            00 over the live panorama, then begin advancing the image sequence. */
         await fadeInSequenceFirstFrame(config);
 
-        if (activeSequence !== config) return;
+        /* A PRODUCTS-rail click can request a return while frame 00 is still
+           fading in. Do not let this older forward task restart itself after the
+           return transition has already taken ownership of the sequence. */
+        if (
+          activeSequence !== config ||
+          sequenceDirection !== 1 ||
+          sequenceBackTransitioning
+        ) return;
+
         sequenceLastTime = 0;
         sequenceRAF = requestAnimationFrame(sequenceStep);
       } else {
-        sequenceCurrentIndex = config.frames.length - 1;
+        const finalIndex = Math.max(0, config.frames.length - 1);
+        const requestedStartIndex = Number(reverseStartIndex);
+        sequenceCurrentIndex = Number.isFinite(requestedStartIndex)
+          ? Math.max(0, Math.min(finalIndex, Math.round(requestedStartIndex)))
+          : finalIndex;
+
         sequencePlaybackCanvas.style.transition = "none";
         sequencePlaybackCanvas.style.opacity = "1";
         applySequenceFrame(config, sequenceCurrentIndex);
 
-        /* BACK begins by dissolving the cleaner final frame into the next frame
-           of the reverse path. Normal reverse playback starts only after that
-           endpoint transition is complete. */
-        await fadeOutSequenceLastFrameForReverse(config);
+        /*
+          Normal BACK starts from the completed final frame and keeps the existing
+          endpoint crossfade. A PRODUCTS-rail click can arrive while the forward
+          sequence is still moving; in that case reverse directly from the exact
+          frame currently on screen so there is no jump to the end first.
+        */
+        if (sequenceCurrentIndex >= finalIndex) {
+          await fadeOutSequenceLastFrameForReverse(config);
+        }
 
         if (activeSequence !== config) return;
         sequenceLastTime = 0;
@@ -7942,21 +8032,36 @@
       });
     });
 
-    sequenceBackButton.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-
+    async function beginSequenceReturnToPanorama(allowDuringForwardPlayback = false) {
       if (
-        sequencePlaying ||
         !activeSequence ||
         metalCraftTransitioning ||
-        sequenceBackTransitioning
-      ) return;
+        sequenceBackTransitioning ||
+        sequenceReturnTransitionActive ||
+        sequenceEndpointFadeActive
+      ) {
+        return false;
+      }
+
+      /* If a reverse is already running, the queued destination can simply wait. */
+      if (sequencePlaying && sequenceDirection < 0) return true;
+
+      if (sequencePlaying) {
+        if (!allowDuringForwardPlayback || sequenceDirection !== 1) return false;
+
+        /*
+          Freeze the exact currently displayed forward frame. The reverse will
+          begin from this index instead of jumping to the sequence endpoint.
+        */
+        stopSequencePlayback();
+      }
 
       const sequenceToReverse = activeSequence;
+      const reverseStartIndex = sequenceCurrentIndex;
       sequenceBackTransitioning = true;
       sequenceBackButton.disabled = true;
       metalCraftNavigationToken += 1;
+      freezePanoramaBackground();
 
       /*
         A secondary METAL CRAFT or SOFFIT page must never be used for the
@@ -7979,7 +8084,7 @@
           sequenceBackTransitioning = false;
           sequenceBackButton.disabled = false;
           sequenceLottieIndependentReverse = false;
-          return;
+          return false;
         }
       }
 
@@ -8014,7 +8119,7 @@
         sequenceBackTransitioning = false;
         sequenceBackButton.disabled = false;
         sequenceLottieIndependentReverse = false;
-        return;
+        return false;
       }
 
       /*
@@ -8024,7 +8129,18 @@
       */
       setSequenceChromeVisible(false);
       sequenceLottieCard.classList.add("is-returning");
-      playSequence(sequenceToReverse, -1);
+      playSequence(sequenceToReverse, -1, reverseStartIndex);
+      return true;
+    }
+
+    sequenceBackButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      /* The normal BACK button keeps its original rule: only use it once the
+         forward sequence is no longer actively advancing. */
+      if (sequencePlaying) return;
+      await beginSequenceReturnToPanorama(false);
     });
 
     [sequenceBackButton].forEach((button) => {
