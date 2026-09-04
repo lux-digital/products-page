@@ -2394,7 +2394,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
   <script>
-    console.info("[LUX] Products sidebar V7 + loading 01 loaded");
+    console.info("[LUX] Products sidebar V8 + locked product selection + loading 01 loaded");
     const initialLoadingOverlay = document.getElementById("initialLoadingOverlay");
     const initialLoadingLottie = document.getElementById("initialLoadingLottie");
     const initialLoadingFallback = document.getElementById("initialLoadingFallback");
@@ -2573,6 +2573,16 @@
     let connectorActiveHotspot = null;
     let connectorOutgoingHotspot = null;
     let lastParentActiveProductKey = "";
+
+    /*
+      Once a product is explicitly selected, keep the desktop PRODUCTS rail
+      locked to that product throughout the camera pan, forward sequence,
+      MORE INFO/Lottie state, and reverse sequence. Passing another hotspot
+      during the camera move must never steal the active red underline.
+      The lock is released only after the main hotspot panorama is fully back.
+    */
+    let lockedProductHotspot = null;
+
     let connectorTransitionStart = 0;
     let connectorTransitioning = false;
     let startupThumbnailRevealActive = false;
@@ -4883,7 +4893,7 @@
       );
     }
 
-    function setActiveHotspotButton(hotspot) {
+    function applyActiveHotspotButton(hotspot) {
       const key = hotspot
         ? normalizeHotspotKey(hotspot.text || hotspot.label || hotspot.title)
         : "";
@@ -4895,8 +4905,27 @@
         );
       });
 
-      /* Keep the Elementor product rail synchronized with the connector target. */
       notifyParentOfActiveHotspot(hotspot);
+    }
+
+    function setActiveHotspotButton(hotspot) {
+      /*
+        Normal browsing follows the connector. During a selected product
+        experience, however, the explicit selection wins until the full return
+        to the main hotspot page has completed.
+      */
+      applyActiveHotspotButton(lockedProductHotspot || hotspot);
+    }
+
+    function lockActiveProduct(hotspot) {
+      if (!hotspot) return;
+      lockedProductHotspot = hotspot;
+      applyActiveHotspotButton(hotspot);
+    }
+
+    function unlockActiveProductToConnector() {
+      lockedProductHotspot = null;
+      applyActiveHotspotButton(connectorActiveHotspot);
     }
 
     function getClosestOffsetForFrame(frameIndex) {
@@ -5301,6 +5330,12 @@
       if (data.type === parentActivateProductType) {
         const hotspot = findHotspotByParentProductKey(data.key || data.title);
         if (!hotspot) return;
+
+        /*
+          A deliberate left-rail click owns the active state immediately, even
+          if another product is currently reversing out underneath it.
+        */
+        lockActiveProduct(hotspot);
 
         /*
           A left-rail click must never feel dead. While a hotspot sequence, its
@@ -7405,9 +7440,20 @@
         autoRotate = false;
         panVelocity = 0;
         targetOffset = currentOffset;
+
+        /*
+          The queued product was already locked when its left-rail button was
+          clicked. Keep that lock through the handoff into its new sequence.
+        */
         activateHotspot(queuedHotspot);
         return;
       }
+
+      /*
+        We are genuinely back on the main hotspot page now. Normal connector
+        tracking is allowed to own the left-rail active state again.
+      */
+      unlockActiveProductToConnector();
 
       if (!userPausedAutoRotate && !isDragging && isMainPanoramaPage()) {
         autoRotate = true;
@@ -8449,6 +8495,13 @@
       if (sequencePlaying || activeSequence || sequencePreparing) return;
       if (hotspotPageTopResetActive) return;
 
+      /*
+        Lock before any vertical page reset or horizontal panorama pan starts.
+        This guarantees that hotspots passed on the way cannot replace the
+        selected product in the left rail.
+      */
+      lockActiveProduct(hotspot);
+
       if (shouldReturnPageTopBeforeHotspot()) {
         requestPageTopForHotspot(hotspot);
         return;
@@ -8546,6 +8599,7 @@
           setFrameButtonsVisible(true);
           setHotspotsVisible(true);
           restoreThumbnailFeatureAfterSequence();
+          unlockActiveProductToConnector();
           document.getElementById("infoTitle").textContent = hotspot.text || hotspot.title;
           document.getElementById("infoText").textContent =
             "The image sequence could not finish loading. Please check the frame filenames and try again.";
