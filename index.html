@@ -99,15 +99,48 @@
       pointer-events: none;
     }
 
-    #initialLoadingMark {
-      position: relative;
+    /*
+      Initial startup animation. The Lottie file "loading 01" replaces the
+      old CSS spinner. The tiny CSS spinner below is retained only as a hidden
+      emergency fallback if the Lottie JSON cannot be loaded.
+    */
+    #initialLoadingLottie {
+      width: clamp(120px, 14vw, 220px);
+      height: clamp(120px, 14vw, 220px);
+      display: block;
+      opacity: 0;
+      transition: opacity 0.22s ease;
+      pointer-events: none;
+    }
+
+    #initialLoadingLottie.is-ready {
+      opacity: 1;
+    }
+
+    #initialLoadingLottie svg,
+    #initialLoadingLottie canvas {
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+    }
+
+    #initialLoadingFallback {
+      position: absolute;
       width: 58px;
       height: 58px;
       border-radius: 50%;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
     }
 
-    #initialLoadingMark::before,
-    #initialLoadingMark::after {
+    #initialLoadingFallback.is-visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    #initialLoadingFallback::before,
+    #initialLoadingFallback::after {
       content: "";
       position: absolute;
       inset: 0;
@@ -115,43 +148,19 @@
       box-sizing: border-box;
     }
 
-    #initialLoadingMark::before {
+    #initialLoadingFallback::before {
       border: 1px solid rgba(255, 255, 255, 0.16);
     }
 
-    #initialLoadingMark::after {
+    #initialLoadingFallback::after {
       border: 1.5px solid transparent;
       border-top-color: rgba(255, 255, 255, 0.96);
       border-right-color: rgba(255, 255, 255, 0.42);
       animation: initialLoaderSpin 1.05s cubic-bezier(0.55, 0.05, 0.45, 0.95) infinite;
     }
 
-    #initialLoadingDot {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #fff;
-      transform: translate(-50%, -50%) scale(0.72);
-      opacity: 0.74;
-      animation: initialLoaderPulse 1.05s ease-in-out infinite;
-    }
-
     @keyframes initialLoaderSpin {
       to { transform: rotate(360deg); }
-    }
-
-    @keyframes initialLoaderPulse {
-      0%, 100% {
-        transform: translate(-50%, -50%) scale(0.62);
-        opacity: 0.46;
-      }
-      50% {
-        transform: translate(-50%, -50%) scale(1);
-        opacity: 1;
-      }
     }
 
     /*
@@ -2241,9 +2250,8 @@
 
 <body>
   <div id="initialLoadingOverlay" aria-label="Loading panorama" role="status">
-    <div id="initialLoadingMark" aria-hidden="true">
-      <span id="initialLoadingDot"></span>
-    </div>
+    <div id="initialLoadingLottie" aria-hidden="true"></div>
+    <div id="initialLoadingFallback" aria-hidden="true"></div>
   </div>
 
   <div id="viewer">
@@ -2386,8 +2394,128 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
   <script>
-    console.info("[LUX] Products sidebar V6 loaded");
+    console.info("[LUX] Products sidebar V7 + loading 01 loaded");
     const initialLoadingOverlay = document.getElementById("initialLoadingOverlay");
+    const initialLoadingLottie = document.getElementById("initialLoadingLottie");
+    const initialLoadingFallback = document.getElementById("initialLoadingFallback");
+
+    const initialLoadingLottieName = "loading 01";
+    let initialLoadingLottieAnimation = null;
+
+    function showInitialLoadingFallback() {
+      if (initialLoadingLottie) {
+        initialLoadingLottie.classList.remove("is-ready");
+      }
+      if (initialLoadingFallback) {
+        initialLoadingFallback.classList.add("is-visible");
+      }
+    }
+
+    function initializeInitialLoadingLottie() {
+      if (!initialLoadingLottie || !window.lottie) {
+        showInitialLoadingFallback();
+        return Promise.resolve(false);
+      }
+
+      /*
+        Normal project convention is:
+        lottie/<NAME>/<NAME>.json
+
+        The additional candidates make this tolerant if loading 01 was exported
+        directly into /lottie or beside index.html instead.
+      */
+      const encodedName = encodeURIComponent(initialLoadingLottieName);
+      const candidatePaths = [
+        `lottie/${encodedName}/${encodedName}.json`,
+        `lottie/${encodedName}.json`,
+        `${encodedName}.json`
+      ];
+
+      return new Promise((resolve) => {
+        let candidateIndex = 0;
+        let settled = false;
+
+        const finish = (success) => {
+          if (settled) return;
+          settled = true;
+          resolve(Boolean(success));
+        };
+
+        const tryNextCandidate = () => {
+          if (initialLoadingLottieAnimation) {
+            try {
+              initialLoadingLottieAnimation.destroy();
+            } catch (error) { }
+            initialLoadingLottieAnimation = null;
+          }
+
+          initialLoadingLottie.innerHTML = "";
+
+          if (candidateIndex >= candidatePaths.length) {
+            console.warn(
+              `[LUX] Could not load ${initialLoadingLottieName}. Falling back to the CSS loader.`
+            );
+            showInitialLoadingFallback();
+            finish(false);
+            return;
+          }
+
+          const path = candidatePaths[candidateIndex++];
+
+          try {
+            const animation = lottie.loadAnimation({
+              container: initialLoadingLottie,
+              renderer: "svg",
+              loop: true,
+              autoplay: true,
+              path,
+              rendererSettings: {
+                preserveAspectRatio: "xMidYMid meet",
+                progressiveLoad: true
+              }
+            });
+
+            initialLoadingLottieAnimation = animation;
+
+            let candidateFinished = false;
+            const acceptCandidate = () => {
+              if (candidateFinished || settled) return;
+              candidateFinished = true;
+              initialLoadingFallback?.classList.remove("is-visible");
+              initialLoadingLottie.classList.add("is-ready");
+              console.info(`[LUX] Initial loader active: ${path}`);
+              finish(true);
+            };
+
+            const rejectCandidate = () => {
+              if (candidateFinished || settled) return;
+              candidateFinished = true;
+              tryNextCandidate();
+            };
+
+            animation.addEventListener("DOMLoaded", acceptCandidate);
+            animation.addEventListener("data_ready", acceptCandidate);
+            animation.addEventListener("data_failed", rejectCandidate);
+          } catch (error) {
+            tryNextCandidate();
+          }
+        };
+
+        tryNextCandidate();
+
+        /* Never hold startup indefinitely because of a malformed Lottie export. */
+        setTimeout(() => {
+          if (settled) return;
+          if (!initialLoadingLottie.classList.contains("is-ready")) {
+            showInitialLoadingFallback();
+          }
+          finish(initialLoadingLottie.classList.contains("is-ready"));
+        }, 2200);
+      });
+    }
+
+    const initialLoadingLottieReadyPromise = initializeInitialLoadingLottie();
+
     const container = document.getElementById("viewer");
     const scenePlane = document.getElementById("scenePlane");
     const skyLayer = document.getElementById("skyLayer");
@@ -5442,7 +5570,8 @@
         preloadInitialPanoramaArtwork(),
         preloadForegroundSequence(),
         preloadReflectionLayer(),
-        preloadAllHotspotThumbnails()
+        preloadAllHotspotThumbnails(),
+        initialLoadingLottieReadyPromise
       ]);
     }
 
@@ -5467,6 +5596,13 @@
       await waitForDelay(760);
       initialLoadingOverlay.classList.remove("is-fading");
       initialLoadingOverlay.classList.add("is-hidden");
+
+      if (initialLoadingLottieAnimation) {
+        try {
+          initialLoadingLottieAnimation.destroy();
+        } catch (error) { }
+        initialLoadingLottieAnimation = null;
+      }
     }
 
     function preloadAllHotspotThumbnails() {
