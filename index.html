@@ -1027,6 +1027,22 @@
       transform: translateX(-50%) scale(0.78);
     }
 
+    /*
+      Hotspot-to-sequence handoff. The circle stays on-screen while the camera
+      moves and the connector retracts. Only when sequence frame 00 starts its
+      crossfade does the whole thumbnail control scale/fade away.
+    */
+    #hotspotFocusCircle.sequence-exit-pending #hotspotThumbnailStage,
+    #hotspotFocusCircle.sequence-exit-pending #hotspotFocusClose {
+      pointer-events: none !important;
+    }
+
+    #hotspotFocusCircle.sequence-exiting {
+      opacity: 0;
+      visibility: visible;
+      transform: translateX(-50%) scale(0.72);
+    }
+
     #hotspotThumbnailStage {
       position: absolute;
       left: 13px;
@@ -2431,6 +2447,14 @@
     let startupThumbnailRevealActive = false;
     const connectorTransitionDuration = 850;
 
+    /* Dedicated exit state used only after a hotspot is selected. */
+    let sequenceThumbnailExitPending = false;
+    let sequenceThumbnailExitToken = 0;
+    let sequenceConnectorRetractActive = false;
+    let sequenceConnectorRetractStart = 0;
+    let sequenceConnectorRetractDuration = connectorTransitionDuration;
+    let sequenceConnectorRetractHotspot = null;
+
     const frameFolder = "180";
     const frameCount = 3;
     const panoFrameAspectRatio = 16 / 9;
@@ -2590,9 +2614,12 @@
     const reflectionImageSource = "reflection.png";
 
     /*
-      Deliberately strong while we verify the effect. Once you can clearly see
-      the distortion, this can be reduced to something like 8–20.
+      TEMPORARY SWITCH: keep the original masked reflection system active, but
+      do not load or render the displacement-map/WebGL version. Set this back to
+      true later when the displacement effect is wanted again.
     */
+    const reflectionDisplacementEnabled = false;
+
     const reflectionDisplacementStrength = 55;
 
     const reflectionLayerConfigs = [
@@ -2833,6 +2860,10 @@
     let sequenceDirection = 1;
     let sequenceRAF = null;
     let sequenceLastTime = 0;
+    let sequenceEndpointFadeActive = false;
+    const sequenceFirstFrameFadeDuration = 560;
+    const sequenceLastFrameFadeDuration = 560;
+    const sequenceReverseLastFrameFadeDuration = sequenceLastFrameFadeDuration;
     let sequenceReturnTransitionToken = 0;
     /*
       Locks iframe/ResizeObserver geometry while frame 00 is being handed back
@@ -4175,6 +4206,7 @@
     }
 
     async function preloadReflectionDisplacement() {
+      if (!reflectionDisplacementEnabled) return false;
       if (reflectionWebGLReady) return true;
       if (reflectionWebGLFailed) return false;
       if (reflectionDisplacementLoadPromise) {
@@ -4445,6 +4477,7 @@
         untouched.
       */
       if (
+        reflectionDisplacementEnabled &&
         reflectionWebGLReady &&
         renderDisplacedReflection(viewport)
       ) {
@@ -5739,8 +5772,17 @@
       pulse.classList.add("is-arrived-pulse");
     }
 
-    function drawConnectorPair(line, dot, pulse, hotspot, progress, circleCenterX, circleCenterY) {
-      if (!hotspot || !hotspot._visible) {
+    function drawConnectorPair(
+      line,
+      dot,
+      pulse,
+      hotspot,
+      progress,
+      circleCenterX,
+      circleCenterY,
+      allowHiddenHotspot = false
+    ) {
+      if (!hotspot || (!allowHiddenHotspot && !hotspot._visible)) {
         hideConnectorPair(line, dot, pulse);
         return;
       }
@@ -5776,6 +5818,45 @@
     }
 
     function updateHotspotConnector(now = performance.now()) {
+      /*
+        Once a hotspot is clicked, freeze normal nearest-hotspot switching and
+        retract the currently visible connector back into the thumbnail circle
+        while the panorama camera is moving to the sequence alignment.
+      */
+      if (sequenceConnectorRetractActive && sequenceConnectorRetractHotspot) {
+        const circleRect = hotspotFocusCircle.getBoundingClientRect();
+        const circleCenterX = circleRect.left + circleRect.width / 2;
+        const circleCenterY = circleRect.top + circleRect.height / 2;
+        const rawProgress = Math.max(
+          0,
+          Math.min(
+            (now - sequenceConnectorRetractStart) /
+              Math.max(1, sequenceConnectorRetractDuration),
+            1
+          )
+        );
+        const retractProgress = 1 - easeInOutCubic(rawProgress);
+
+        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
+        drawConnectorPair(
+          hotspotConnectorLineB,
+          hotspotConnectorDotB,
+          hotspotConnectorPulseB,
+          sequenceConnectorRetractHotspot,
+          retractProgress,
+          circleCenterX,
+          circleCenterY,
+          true
+        );
+
+        if (rawProgress >= 1) {
+          sequenceConnectorRetractActive = false;
+          hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB, hotspotConnectorPulseB);
+        }
+
+        return;
+      }
+
       if (
         !hotspotConnectorEnabled ||
         !hotspotsVisible ||
@@ -7063,6 +7144,114 @@
       }
     }
 
+    async function fadeInSequenceFirstFrame(config) {
+      sequencePlaybackCanvas.style.transition = "none";
+      sequencePlaybackCanvas.style.opacity = "0";
+      applySequenceFrame(config, 0);
+
+      /* Give the aligned panorama one paint underneath frame 00 before the
+         sequence canvas starts becoming visible. */
+      await waitForPaintFrames(1);
+
+      /* The thumbnail exit shares this existing crossfade window, so its
+         scale/flip animation cannot add any extra wait before playback. */
+      animateThumbnailFeatureAwayWithSequenceFade(sequenceFirstFrameFadeDuration);
+
+      sequencePlaybackCanvas.style.transition =
+        `opacity ${sequenceFirstFrameFadeDuration}ms ease-in-out`;
+      sequencePlaybackCanvas.style.opacity = "1";
+
+      await waitForDelay(sequenceFirstFrameFadeDuration);
+      sequencePlaybackCanvas.style.transition = "none";
+    }
+
+    async function fadeInSequenceLastFrame(config) {
+      const finalIndex = Math.max(0, config.frames.length - 1);
+      const finalSrc = config.frames[finalIndex];
+
+      /* Reuse the existing screen-space transition layer so the penultimate
+         decoded sequence frame remains visible underneath while the cleaner
+         final JPG fades over it. */
+      sequenceReturnOverlay.classList.remove("is-visible", "is-fading");
+      sequenceReturnOverlay.style.transition = "none";
+      sequenceReturnOverlay.style.left = `${-sequenceViewportCropX}px`;
+      sequenceReturnOverlay.style.top = `${panoStripTop}px`;
+      sequenceReturnOverlay.style.width = `${frameWidth}px`;
+      sequenceReturnOverlay.style.height = `${frameHeight}px`;
+      sequenceReturnOverlay.style.backgroundImage = `url("${finalSrc}")`;
+      sequenceReturnOverlay.style.opacity = "0";
+      sequenceReturnOverlay.style.visibility = "visible";
+      sequenceReturnOverlay.setAttribute("aria-hidden", "false");
+
+      await waitForPaintFrames(1);
+
+      sequenceReturnOverlay.style.transition =
+        `opacity ${sequenceLastFrameFadeDuration}ms ease-in-out`;
+      sequenceReturnOverlay.style.opacity = "1";
+
+      await waitForDelay(sequenceLastFrameFadeDuration);
+
+      /* Lock the final decoded frame into the normal playback canvas before
+         removing the temporary fade layer. There is therefore no visual jump. */
+      sequenceCurrentIndex = finalIndex;
+      applySequenceFrame(config, finalIndex);
+      await waitForPaintFrames(1);
+      hideSequenceReturnOverlayImmediately();
+    }
+
+    async function fadeOutSequenceLastFrameForReverse(config) {
+      const finalIndex = Math.max(0, config.frames.length - 1);
+      const nextReverseIndex = Math.max(0, finalIndex - 1);
+      const finalSrc = config.frames[finalIndex];
+
+      if (finalIndex <= 0) {
+        sequenceCurrentIndex = 0;
+        applySequenceFrame(config, 0);
+        return;
+      }
+
+      /* Keep the high-quality endpoint on a top layer while the penultimate
+         decoded frame is painted underneath, then fade the endpoint away. */
+      sequenceReturnOverlay.classList.remove("is-visible", "is-fading");
+      sequenceReturnOverlay.style.transition = "none";
+      sequenceReturnOverlay.style.left = `${-sequenceViewportCropX}px`;
+      sequenceReturnOverlay.style.top = `${panoStripTop}px`;
+      sequenceReturnOverlay.style.width = `${frameWidth}px`;
+      sequenceReturnOverlay.style.height = `${frameHeight}px`;
+      sequenceReturnOverlay.style.backgroundImage = `url("${finalSrc}")`;
+      sequenceReturnOverlay.style.opacity = "1";
+      sequenceReturnOverlay.style.visibility = "visible";
+      sequenceReturnOverlay.setAttribute("aria-hidden", "false");
+
+      sequenceCurrentIndex = nextReverseIndex;
+      applySequenceFrame(config, nextReverseIndex);
+      await waitForPaintFrames(1);
+
+      sequenceReturnOverlay.style.transition =
+        `opacity ${sequenceReverseLastFrameFadeDuration}ms ease-in-out`;
+      sequenceReturnOverlay.style.opacity = "0";
+
+      await waitForDelay(sequenceReverseLastFrameFadeDuration);
+      hideSequenceReturnOverlayImmediately();
+    }
+
+    async function finishForwardSequenceWithFade(config) {
+      if (!config || activeSequence !== config || sequenceEndpointFadeActive) return;
+
+      sequenceEndpointFadeActive = true;
+      stopSequencePlayback();
+
+      try {
+        await fadeInSequenceLastFrame(config);
+      } finally {
+        sequenceEndpointFadeActive = false;
+      }
+
+      if (activeSequence === config) {
+        finishSequencePlayback();
+      }
+    }
+
     function finishSequencePlayback() {
       stopSequencePlayback();
 
@@ -7106,6 +7295,18 @@
         sequenceLastTime += frameDuration;
 
         const nextIndex = sequenceCurrentIndex + sequenceDirection;
+
+        /* On forward playback, do not hard-cut from the penultimate frame to
+           the high-quality endpoint. Hold the current frame and crossfade the
+           final image over it instead. */
+        if (
+          sequenceDirection === 1 &&
+          activeSequence.frames.length > 1 &&
+          nextIndex >= activeSequence.frames.length - 1
+        ) {
+          finishForwardSequenceWithFade(activeSequence);
+          return;
+        }
 
         if (nextIndex < 0) {
           sequenceCurrentIndex = 0;
@@ -7213,12 +7414,29 @@
 
       if (direction === 1) {
         sequenceCurrentIndex = 0;
+
+        /* The camera has now reached the exact sequence alignment. Fade frame
+           00 over the live panorama, then begin advancing the image sequence. */
+        await fadeInSequenceFirstFrame(config);
+
+        if (activeSequence !== config) return;
+        sequenceLastTime = 0;
+        sequenceRAF = requestAnimationFrame(sequenceStep);
       } else {
         sequenceCurrentIndex = config.frames.length - 1;
-      }
+        sequencePlaybackCanvas.style.transition = "none";
+        sequencePlaybackCanvas.style.opacity = "1";
+        applySequenceFrame(config, sequenceCurrentIndex);
 
-      applySequenceFrame(config, sequenceCurrentIndex);
-      sequenceRAF = requestAnimationFrame(sequenceStep);
+        /* BACK begins by dissolving the cleaner final frame into the next frame
+           of the reverse path. Normal reverse playback starts only after that
+           endpoint transition is complete. */
+        await fadeOutSequenceLastFrameForReverse(config);
+
+        if (activeSequence !== config) return;
+        sequenceLastTime = 0;
+        sequenceRAF = requestAnimationFrame(sequenceStep);
+      }
     }
 
     function startConfiguredSequence(config) {
@@ -7911,18 +8129,20 @@
       clearPendingArrivalCallback();
       showBackButton(false);
       infoBox.style.display = "none";
-      hideThumbnailFeatureForSequence();
+      beginThumbnailFeatureExitForSequence(hotspot);
 
       if (!config) {
         sequenceFocusHotspot = null;
         sequenceViewportCropX = 0;
-        moveToFrame(hotspot.frame, () => {
+        const fallbackMoveDuration = moveToFrame(hotspot.frame, () => {
+          animateThumbnailFeatureAwayWithSequenceFade(320);
           document.getElementById("infoTitle").textContent =
             hotspot.text || hotspot.title;
           document.getElementById("infoText").textContent =
             "Image sequence coming soon.";
           infoBox.style.display = "block";
         });
+        startSequenceConnectorRetraction(fallbackMoveDuration);
         return;
       }
 
@@ -8000,6 +8220,10 @@
         forceParallaxNeutral();
         playSequence(config, 1);
       }, false, destinationOffsetX, targetFrameSize);
+
+      /* Retract the connector across the same time window as the camera move.
+         This is purely decorative and never gates sequence playback. */
+      startSequenceConnectorRetraction(cameraMoveDuration);
 
       /* Fade the live reflection away while the camera travels to frame 00. */
       fadeReflectionOutForForwardSequence(cameraMoveDuration);
@@ -8146,19 +8370,120 @@
       }
     }
 
-    function hideThumbnailFeatureForSequence() {
+    function beginThumbnailFeatureExitForSequence(clickedHotspot) {
       thumbnailsWereOpenBeforeSequence = hotspotConnectorEnabled;
+      sequenceThumbnailExitToken += 1;
+      sequenceThumbnailExitPending = thumbnailsWereOpenBeforeSequence;
+      sequenceConnectorRetractActive = false;
+      sequenceConnectorRetractHotspot = null;
 
       setPanToggleVisible(false);
       setActiveHotspotButton(null);
+      stopHotspotFocusArcAnimation();
+
+      if (!thumbnailsWereOpenBeforeSequence) {
+        hotspotConnectorEnabled = false;
+        hotspotFocusCircle.style.display = "none";
+        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
+        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB, hotspotConnectorPulseB);
+        hideAllThumbnails();
+        return;
+      }
+
+      hotspotFocusCircle.style.display = "";
+      hotspotFocusCircle.classList.remove("sequence-exiting");
+      hotspotFocusCircle.classList.add("sequence-exit-pending");
+
+      /* Prefer the connector that is actually on-screen. A directly clicked
+         hotspot is the fallback when startup timing has not selected one yet. */
+      sequenceConnectorRetractHotspot = connectorActiveHotspot || clickedHotspot || null;
+    }
+
+    function startSequenceConnectorRetraction(cameraMoveDuration = 0) {
+      if (!sequenceThumbnailExitPending || !sequenceConnectorRetractHotspot) {
+        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
+        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB, hotspotConnectorPulseB);
+        return;
+      }
+
+      sequenceConnectorRetractStart = performance.now();
+      sequenceConnectorRetractDuration =
+        Number(cameraMoveDuration) > 0
+          ? Math.max(1, Number(cameraMoveDuration))
+          : 280;
+      sequenceConnectorRetractActive = true;
+      connectorTransitioning = false;
+      connectorOutgoingHotspot = null;
+    }
+
+    function animateThumbnailFeatureAwayWithSequenceFade(duration) {
+      if (!sequenceThumbnailExitPending) return;
+
+      const exitToken = ++sequenceThumbnailExitToken;
+      sequenceConnectorRetractActive = false;
+      sequenceConnectorRetractHotspot = null;
       hotspotConnectorEnabled = false;
-      hotspotFocusCircle.style.display = "none";
       hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
       hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB, hotspotConnectorPulseB);
-      hideAllThumbnails();
+
+      /* Cancel any in-progress thumbnail swap. The currently visible image now
+         performs only the outgoing half of that same horizontal flip, with no
+         incoming replacement. */
+      thumbnailSwapToken += 1;
+      const exitDuration = Math.max(1, Number(duration) || sequenceFirstFrameFadeDuration);
+      const candidates = [hotspotFocusThumbnailA, hotspotFocusThumbnailB];
+
+      candidates.forEach((element) => {
+        const isVisibleThumbnail =
+          element === activeThumbnailElement ||
+          element.classList.contains("is-visible") ||
+          element.classList.contains("is-entering") ||
+          element.classList.contains("is-flipping-in");
+
+        element.onload = null;
+        element.onerror = null;
+
+        if (isVisibleThumbnail) {
+          element.style.transitionDuration = `${exitDuration}ms`;
+          element.classList.remove(
+            "is-visible",
+            "is-entering",
+            "is-flipping-in",
+            "startup-thumbnail",
+            "startup-thumbnail-show"
+          );
+          element.classList.add("is-exiting");
+        } else {
+          resetThumbnailElement(element);
+          element.style.opacity = "0";
+        }
+      });
+
+      hotspotFocusCircle.style.transitionDuration = `${exitDuration}ms`;
+      hotspotFocusCircle.classList.remove("sequence-exit-pending");
+
+      /* Commit the full-size state before asking CSS to scale it away. */
+      void hotspotFocusCircle.offsetWidth;
+      hotspotFocusCircle.classList.add("sequence-exiting");
+
+      setTimeout(() => {
+        if (exitToken !== sequenceThumbnailExitToken) return;
+        hotspotFocusCircle.style.display = "none";
+        hotspotFocusCircle.classList.remove("sequence-exiting", "sequence-exit-pending");
+        hotspotFocusCircle.style.removeProperty("transition-duration");
+        hideAllThumbnails();
+        sequenceThumbnailExitPending = false;
+      }, exitDuration);
     }
 
     function restoreThumbnailFeatureAfterSequence() {
+      sequenceThumbnailExitToken += 1;
+      sequenceThumbnailExitPending = false;
+      sequenceConnectorRetractActive = false;
+      sequenceConnectorRetractHotspot = null;
+      hotspotFocusCircle.classList.remove("sequence-exit-pending", "sequence-exiting");
+      hotspotFocusCircle.style.removeProperty("transition-duration");
+
       setPanToggleVisible(true);
       hotspotFocusCircle.style.display = "";
 
