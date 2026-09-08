@@ -252,15 +252,15 @@
       word-spacing: 0.10em;
       white-space: nowrap;
       opacity: 0;
-      transform: translate3d(var(--hotspot-title-slide, 145px), -50%, 0);
+      transform: translate3d(var(--hotspot-title-slide, 68px), -50%, 0);
       transform-origin: left center;
       text-shadow:
         0 12px 30px rgba(0, 0, 0, 0.34),
         0 3px 9px rgba(0, 0, 0, 0.30);
       will-change: left, top, font-size, transform, opacity;
       transition:
-        transform 0.68s cubic-bezier(0.22, 1, 0.36, 1),
-        opacity 0.38s ease-out;
+        transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.28s ease-out;
     }
 
     #hotspotHeroTitle.is-visible {
@@ -272,10 +272,10 @@
        from the right at the exact same vertical position. */
     #hotspotHeroTitle.is-exiting-left {
       opacity: 0;
-      transform: translate3d(calc(0px - var(--hotspot-title-slide, 145px)), -50%, 0);
+      transform: translate3d(calc(0px - var(--hotspot-title-slide, 68px)), -50%, 0);
       transition:
-        transform 0.34s cubic-bezier(0.55, 0, 1, 0.45),
-        opacity 0.27s ease-in;
+        transform 0.30s cubic-bezier(0.55, 0, 1, 0.45),
+        opacity 0.22s ease-in;
     }
 
     /* Sequence handoff is intentionally different: no horizontal movement,
@@ -2465,7 +2465,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
   <script>
-    console.info("[LUX] Products sidebar V12 + hotspot title entrance-state fix + layer-order fix + locked product selection + loading 01 loaded");
+    console.info("[LUX] Products sidebar V13 + hover-only large product titles + rail hover bridge + locked product selection + loading 01 loaded");
     const initialLoadingOverlay = document.getElementById("initialLoadingOverlay");
     const initialLoadingLottie = document.getElementById("initialLoadingLottie");
     const initialLoadingFallback = document.getElementById("initialLoadingFallback");
@@ -2665,6 +2665,15 @@
     let hotspotHeroTitleSwapTimer = null;
 
     /*
+      V13: the oversized title is now a hover accent only. The connector/thumbnail
+      may still choose the nearest hotspot for navigation, but that selection no
+      longer owns the title. A direct hotspot hover or a desktop PRODUCTS-rail
+      hover is required before the large lettering appears.
+    */
+    let hotspotHeroTitleDirectHoverHotspot = null;
+    let hotspotHeroTitleParentHoverHotspot = null;
+
+    /*
       Once a product is explicitly selected, keep the desktop PRODUCTS rail
       locked to that product throughout the camera pan, forward sequence,
       MORE INFO/Lottie state, and reverse sequence. Passing another hotspot
@@ -2741,6 +2750,8 @@
     const hotspotPageTopReadyType = "LUX_PANORAMA_PAGE_TOP_READY";
     const parentActiveProductType = "LUX_PANORAMA_ACTIVE_PRODUCT";
     const parentPreviewProductType = "LUX_PANORAMA_PREVIEW_PRODUCT";
+    const parentHoverProductType = "LUX_PANORAMA_HOVER_PRODUCT";
+    const parentHoverClearType = "LUX_PANORAMA_HOVER_CLEAR";
     const parentActivateProductType = "LUX_PANORAMA_ACTIVATE_PRODUCT";
     const parentLayoutRefreshType = "LUX_PANORAMA_LAYOUT_REFRESH";
     let hotspotPageTopRequestId = 0;
@@ -5415,6 +5426,19 @@
       const data = event.data;
       if (!data) return;
 
+      if (data.type === parentHoverProductType) {
+        const hotspot = findHotspotByParentProductKey(data.key || data.title);
+        hotspotHeroTitleParentHoverHotspot = hotspot || null;
+        syncHotspotHeroTitleHoverState();
+        return;
+      }
+
+      if (data.type === parentHoverClearType) {
+        hotspotHeroTitleParentHoverHotspot = null;
+        syncHotspotHeroTitleHoverState();
+        return;
+      }
+
       if (data.type === parentPreviewProductType) {
         const hotspot = findHotspotByParentProductKey(data.key || data.title);
         if (hotspot) previewHotspotFromParentMenu(hotspot);
@@ -5556,6 +5580,8 @@
 
     function updateHotspots() {
       let strongestHoverPause = 0;
+      let strongestTitleHoverStrength = 0;
+      let directTitleHoverHotspot = null;
       const viewport = getVisibleViewportSize();
       const responsiveHotspotScaleFactor = getResponsiveHotspotScaleFactor();
 
@@ -5628,6 +5654,15 @@
 
         strongestHoverPause = Math.max(strongestHoverPause, pointerOverStrength);
 
+        if (
+          pointerOverStrength > strongestTitleHoverStrength &&
+          pointerOverStrength > 0.12 &&
+          !sequencePreparing
+        ) {
+          strongestTitleHoverStrength = pointerOverStrength;
+          directTitleHoverHotspot = hotspot;
+        }
+
         /*
           Hover/overstate no longer changes the hotspot scale.
           Scale is now controlled only by the center-of-screen blue curve,
@@ -5670,6 +5705,11 @@
       });
 
       hoverPauseTarget = strongestHoverPause > 0.1 ? 1 : 0;
+
+      if (directTitleHoverHotspot !== hotspotHeroTitleDirectHoverHotspot) {
+        hotspotHeroTitleDirectHoverHotspot = directTitleHoverHotspot;
+        syncHotspotHeroTitleHoverState();
+      }
     }
 
     async function preloadInitialPanoramaArtwork() {
@@ -5879,7 +5919,6 @@
 
       // Stage 2: line extends from the circle to the correct hotspot.
       hotspotConnectorEnabled = true;
-      showHotspotHeroTitle(focusHotspot);
       connectorTransitionStart = performance.now();
       connectorTransitioning = true;
       await waitForDelay(connectorTransitionDuration + 90);
@@ -5934,7 +5973,7 @@
         frameHeight * (hotspotHeroTitleReferenceCenterY / panoSourceHeight) +
         scrollParallaxY * hotspotHeroTitleScrollParallaxMultiplier;
       const fontSize = hotspotHeroTitleReferenceFontSize * frameScale * compactScale;
-      const slideDistance = Math.max(58, Math.min(145, fontSize * 0.83));
+      const slideDistance = Math.max(42, Math.min(72, fontSize * 0.42));
 
       hotspotHeroTitle.style.left = `${left}px`;
       hotspotHeroTitle.style.top = `${centerY}px`;
@@ -6019,7 +6058,6 @@
     function showHotspotHeroTitle(hotspot) {
       if (!hotspotHeroTitle || !hotspot) return;
       if (
-        !hotspotConnectorEnabled ||
         !hotspotsVisible ||
         sequencePlaying ||
         activeSequence ||
@@ -6068,6 +6106,29 @@
         if (hotspotHeroTitlePendingKey !== key) return;
         enterHotspotHeroTitle(title, key, token);
       }, 285);
+    }
+
+    function syncHotspotHeroTitleHoverState() {
+      if (
+        sequencePlaying ||
+        activeSequence ||
+        sequencePreparing ||
+        !hotspotsVisible
+      ) {
+        fadeHotspotHeroTitleForSequence();
+        return;
+      }
+
+      /* The parent rail wins while it is hovered. Direct hotspot hover takes over
+         again as soon as the mouse returns to the panorama. */
+      const hoverHotspot =
+        hotspotHeroTitleParentHoverHotspot || hotspotHeroTitleDirectHoverHotspot;
+
+      if (hoverHotspot) {
+        showHotspotHeroTitle(hoverHotspot);
+      } else {
+        hideHotspotHeroTitle();
+      }
     }
 
     function resetThumbnailElement(element) {
@@ -6422,7 +6483,7 @@
       }
 
       if (!hotspotConnectorEnabled || !hotspotsVisible) {
-        hideHotspotHeroTitle();
+        syncHotspotHeroTitleHoverState();
         hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
         hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB, hotspotConnectorPulseB);
         return;
@@ -6431,7 +6492,7 @@
       const focusHotspot = getClosestVisibleHotspotToCenter();
 
       if (!focusHotspot) {
-        hideHotspotHeroTitle();
+        syncHotspotHeroTitleHoverState();
         hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
         hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB, hotspotConnectorPulseB);
         return;
@@ -6444,7 +6505,6 @@
         connectorTransitioning = true;
         setActiveHotspotButton(connectorActiveHotspot);
         updateHotspotThumbnail(connectorActiveHotspot);
-        showHotspotHeroTitle(connectorActiveHotspot);
       } else if (
         !startupThumbnailRevealActive &&
         focusHotspot !== connectorActiveHotspot
@@ -6462,12 +6522,10 @@
         connectorTransitioning = true;
         setActiveHotspotButton(connectorActiveHotspot);
         updateHotspotThumbnail(connectorActiveHotspot);
-        showHotspotHeroTitle(connectorActiveHotspot);
       }
 
       /* If the focus itself did not change (for example after returning from a
          sequence), this restores the same title without forcing another swap. */
-      showHotspotHeroTitle(connectorActiveHotspot);
 
       const circleRect = hotspotFocusCircle.getBoundingClientRect();
       const circleCenterX = circleRect.left + circleRect.width / 2;
@@ -8762,6 +8820,10 @@
       if (sequencePlaying || activeSequence || sequencePreparing) return;
       if (hotspotPageTopResetActive) return;
 
+      hotspotHeroTitleDirectHoverHotspot = null;
+      hotspotHeroTitleParentHoverHotspot = null;
+      fadeHotspotHeroTitleForSequence();
+
       /*
         Lock before any vertical page reset or horizontal panorama pan starts.
         This guarantees that hotspots passed on the way cannot replace the
@@ -9160,8 +9222,7 @@
         connectorTransitioning = true;
 
         if (connectorActiveHotspot) {
-          showHotspotHeroTitle(connectorActiveHotspot);
-          [hotspotFocusThumbnailA, hotspotFocusThumbnailB].forEach((element) => {
+            [hotspotFocusThumbnailA, hotspotFocusThumbnailB].forEach((element) => {
             element.style.removeProperty("opacity");
           });
 
@@ -9199,8 +9260,7 @@
         connectorTransitioning = true;
 
         if (connectorActiveHotspot) {
-          showHotspotHeroTitle(connectorActiveHotspot);
-          [hotspotFocusThumbnailA, hotspotFocusThumbnailB].forEach((element) => {
+            [hotspotFocusThumbnailA, hotspotFocusThumbnailB].forEach((element) => {
             element.style.removeProperty("opacity");
           });
 
