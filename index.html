@@ -3836,6 +3836,16 @@
         The foreground canvas deliberately does NOT receive the vertical
         page-scroll parallax used by the main panorama. This keeps the closest
         layer locked in place while the background slides beneath it.
+
+        SEAM FIX V2:
+        Keep the full PNG at its exact original position and size. After it has
+        been drawn, stitch only the LEFT join with a microscopic strip sampled
+        from just INSIDE this PNG. The stitch is painted LAST, with smoothing
+        temporarily disabled, so a fractional canvas boundary cannot antialias
+        a transparent hairline back over the repair.
+
+        Nothing in the actual foreground alignment is moved or rescaled. Only
+        roughly two physical screen pixels centred on the join are repainted.
       */
       foregroundContext.drawImage(
         baseImage,
@@ -3844,6 +3854,26 @@
         frameWidth,
         frameHeight
       );
+
+      const seamDevicePixelRatio = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+      const seamStitchWidth = 2 / seamDevicePixelRatio;
+      const seamSourceX = Math.min(2, Math.max(0, baseImage.naturalWidth - 1));
+      const seamSourceWidth = Math.min(2, Math.max(1, baseImage.naturalWidth - seamSourceX));
+      const previousSmoothing = foregroundContext.imageSmoothingEnabled;
+
+      foregroundContext.imageSmoothingEnabled = false;
+      foregroundContext.drawImage(
+        baseImage,
+        seamSourceX,
+        0,
+        seamSourceWidth,
+        baseImage.naturalHeight,
+        drawX - seamStitchWidth / 2,
+        panoStripTop,
+        seamStitchWidth,
+        frameHeight
+      );
+      foregroundContext.imageSmoothingEnabled = previousSmoothing;
 
       if (
         overlayImage &&
