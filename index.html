@@ -220,12 +220,78 @@
       visibility: hidden;
     }
 
+    /* ================================================================
+       LARGE HOTSPOT PRODUCT TITLE
+       Screen-space text inspired by the supplied Photoshop comp. It sits above
+       the panorama/reflections but below the animated foreground canvas, so
+       foreground plants, furniture, water/fire, etc. naturally pass in front.
+       Horizontal motion is used only for title in/out animation; page scrolling
+       changes only the title's Y position through JavaScript.
+       ================================================================ */
+    #hotspotHeroTitleLayer {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      overflow: hidden;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    #hotspotHeroTitle {
+      position: absolute;
+      left: 0;
+      top: 0;
+      margin: 0;
+      padding: 0;
+      color: #fff;
+      font-family: "Futura PT", "Futura PT Bold", "Futura", "Arial Black", Arial, sans-serif;
+      font-size: 174px;
+      font-weight: 800;
+      line-height: 0.92;
+      letter-spacing: -0.018em;
+      word-spacing: 0.10em;
+      white-space: nowrap;
+      opacity: 0;
+      transform: translate3d(var(--hotspot-title-slide, 145px), -50%, 0);
+      transform-origin: left center;
+      text-shadow:
+        0 12px 30px rgba(0, 0, 0, 0.34),
+        0 3px 9px rgba(0, 0, 0, 0.30);
+      will-change: left, top, font-size, transform, opacity;
+      transition:
+        transform 0.68s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.38s ease-out;
+    }
+
+    #hotspotHeroTitle.is-visible {
+      opacity: 1;
+      transform: translate3d(0, -50%, 0);
+    }
+
+    /* Normal focus change: old title glides left while the next one enters
+       from the right at the exact same vertical position. */
+    #hotspotHeroTitle.is-exiting-left {
+      opacity: 0;
+      transform: translate3d(calc(0px - var(--hotspot-title-slide, 145px)), -50%, 0);
+      transition:
+        transform 0.34s cubic-bezier(0.55, 0, 1, 0.45),
+        opacity 0.27s ease-in;
+    }
+
+    /* Sequence handoff is intentionally different: no horizontal movement,
+       just the requested soft fade before frame 00 appears. */
+    #hotspotHeroTitle.is-sequence-fading {
+      opacity: 0;
+      transform: translate3d(0, -50%, 0);
+      transition: opacity 0.30s ease-out;
+    }
+
     #foregroundCanvas {
       position: absolute;
       inset: 0;
       width: 100%;
       height: 100%;
-      z-index: 3;
+      z-index: 4;
       display: block;
       pointer-events: none;
       image-rendering: auto;
@@ -2260,6 +2326,11 @@
       <div id="panoramaStrip"></div>
       <canvas id="reflectionCanvas" aria-hidden="true"></canvas>
       <canvas id="reflectionDisplacementCanvas" aria-hidden="true"></canvas>
+
+      <div id="hotspotHeroTitleLayer" aria-hidden="true">
+        <div id="hotspotHeroTitle"></div>
+      </div>
+
       <canvas id="foregroundCanvas" aria-hidden="true"></canvas>
 
       <!-- Hotspots -->
@@ -2394,7 +2465,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
   <script>
-    console.info("[LUX] Products sidebar V8 + locked product selection + loading 01 loaded");
+    console.info("[LUX] Products sidebar V12 + hotspot title entrance-state fix + layer-order fix + locked product selection + loading 01 loaded");
     const initialLoadingOverlay = document.getElementById("initialLoadingOverlay");
     const initialLoadingLottie = document.getElementById("initialLoadingLottie");
     const initialLoadingFallback = document.getElementById("initialLoadingFallback");
@@ -2523,6 +2594,8 @@
     const reflectionCanvas = document.getElementById("reflectionCanvas");
     const reflectionContext = reflectionCanvas.getContext("2d", { alpha: true });
     const reflectionDisplacementCanvas = document.getElementById("reflectionDisplacementCanvas");
+    const hotspotHeroTitleLayer = document.getElementById("hotspotHeroTitleLayer");
+    const hotspotHeroTitle = document.getElementById("hotspotHeroTitle");
     const foregroundCanvas = document.getElementById("foregroundCanvas");
     const foregroundContext = foregroundCanvas.getContext("2d", { alpha: true });
     const frameButtonsWrapper = document.getElementById("frameButtons");
@@ -2573,6 +2646,23 @@
     let connectorActiveHotspot = null;
     let connectorOutgoingHotspot = null;
     let lastParentActiveProductKey = "";
+
+    /*
+      Large product-title overlay. The Photoshop reference is a 1920 x 1080
+      frame. METAL CRAFT starts at roughly x=264 px and its visible cap-height
+      is centred at y=691.5 px. Keeping those source-space reference values here
+      makes the browser version scale with the panorama while remaining fixed in
+      screen X; only page-scroll parallax changes Y.
+    */
+    const hotspotHeroTitleReferenceLeftX = 264;
+    const hotspotHeroTitleReferenceCenterY = 691.5;
+    const hotspotHeroTitleReferenceFontSize = 174;
+    const hotspotHeroTitleScrollParallaxMultiplier = 0.72;
+    let hotspotHeroTitleKey = "";
+    let hotspotHeroTitlePendingKey = "";
+    let hotspotHeroTitlePendingText = "";
+    let hotspotHeroTitleSwapToken = 0;
+    let hotspotHeroTitleSwapTimer = null;
 
     /*
       Once a product is explicitly selected, keep the desktop PRODUCTS rail
@@ -3488,6 +3578,10 @@
 
     function setHotspotsVisible(visible) {
       hotspotsVisible = visible;
+
+      if (!visible && !sequencePreparing && !sequencePlaying && !activeSequence) {
+        hideHotspotHeroTitle();
+      }
 
       if (!visible) {
         hotspots.forEach((hotspot) => {
@@ -5785,6 +5879,7 @@
 
       // Stage 2: line extends from the circle to the correct hotspot.
       hotspotConnectorEnabled = true;
+      showHotspotHeroTitle(focusHotspot);
       connectorTransitionStart = performance.now();
       connectorTransitioning = true;
       await waitForDelay(connectorTransitionDuration + 90);
@@ -5812,6 +5907,167 @@
 
     function getHotspotThumbnailName(hotspot) {
       return (hotspot?.text || hotspot?.label || hotspot?.title || "").trim();
+    }
+
+    function getHotspotHeroTitleText(hotspot) {
+      return String(hotspot?.text || hotspot?.title || hotspot?.label || "")
+        .trim()
+        .toUpperCase();
+    }
+
+    function updateHotspotHeroTitleLayout() {
+      if (!hotspotHeroTitle) return;
+
+      const viewport = getVisibleViewportSize();
+      const frameScale = Math.max(0.01, frameHeight / panoSourceHeight);
+      const compactScale = compactHotspotMenuLayoutActive
+        ? Math.max(0.52, Math.min(0.74, Math.min(viewport.width, viewport.height) / 650))
+        : 1;
+
+      /* Desktop 1920 x 1080 lands on the exact Photoshop reference:
+         left = 264 px, title centre = 691.5 px, font size = 174 px. */
+      const left = compactHotspotMenuLayoutActive
+        ? Math.max(18, viewport.width * 0.065)
+        : viewport.width * (hotspotHeroTitleReferenceLeftX / panoSourceWidth);
+      const centerY =
+        panoStripTop +
+        frameHeight * (hotspotHeroTitleReferenceCenterY / panoSourceHeight) +
+        scrollParallaxY * hotspotHeroTitleScrollParallaxMultiplier;
+      const fontSize = hotspotHeroTitleReferenceFontSize * frameScale * compactScale;
+      const slideDistance = Math.max(58, Math.min(145, fontSize * 0.83));
+
+      hotspotHeroTitle.style.left = `${left}px`;
+      hotspotHeroTitle.style.top = `${centerY}px`;
+      hotspotHeroTitle.style.fontSize = `${fontSize}px`;
+      hotspotHeroTitle.style.setProperty("--hotspot-title-slide", `${slideDistance}px`);
+    }
+
+    function cancelHotspotHeroTitleSwapTimer() {
+      if (hotspotHeroTitleSwapTimer) {
+        clearTimeout(hotspotHeroTitleSwapTimer);
+        hotspotHeroTitleSwapTimer = null;
+      }
+    }
+
+    function clearHotspotHeroTitleAfterExit(token) {
+      hotspotHeroTitleSwapTimer = setTimeout(() => {
+        hotspotHeroTitleSwapTimer = null;
+        if (token !== hotspotHeroTitleSwapToken) return;
+        if (hotspotHeroTitle.classList.contains("is-visible")) return;
+        if (hotspotHeroTitle.classList.contains("is-sequence-fading")) return;
+        if (hotspotHeroTitlePendingKey) return;
+
+        hotspotHeroTitle.textContent = "";
+        hotspotHeroTitleKey = "";
+        hotspotHeroTitle.classList.remove("is-exiting-left");
+      }, 380);
+    }
+
+    function hideHotspotHeroTitle() {
+      if (!hotspotHeroTitle) return;
+      if (!hotspotHeroTitleKey && !hotspotHeroTitle.textContent && !hotspotHeroTitlePendingKey) return;
+
+      cancelHotspotHeroTitleSwapTimer();
+      hotspotHeroTitlePendingKey = "";
+      hotspotHeroTitlePendingText = "";
+
+      const token = ++hotspotHeroTitleSwapToken;
+      hotspotHeroTitle.classList.remove("is-visible", "is-sequence-fading");
+      hotspotHeroTitle.classList.add("is-exiting-left");
+      clearHotspotHeroTitleAfterExit(token);
+    }
+
+    function fadeHotspotHeroTitleForSequence() {
+      if (!hotspotHeroTitle) return;
+      if (!hotspotHeroTitleKey && !hotspotHeroTitle.textContent && !hotspotHeroTitlePendingKey) return;
+      if (hotspotHeroTitle.classList.contains("is-sequence-fading")) return;
+
+      cancelHotspotHeroTitleSwapTimer();
+      hotspotHeroTitlePendingKey = "";
+      hotspotHeroTitlePendingText = "";
+      ++hotspotHeroTitleSwapToken;
+
+      hotspotHeroTitle.classList.remove("is-visible", "is-exiting-left");
+      hotspotHeroTitle.classList.add("is-sequence-fading");
+    }
+
+    function enterHotspotHeroTitle(title, key, token) {
+      if (token !== hotspotHeroTitleSwapToken) return;
+
+      /* IMPORTANT: keep pendingKey set until the entrance has actually been
+         committed on the next animation frame. updateHotspotConnector() calls
+         showHotspotHeroTitle() every frame; clearing pendingKey here allowed that
+         loop to start a new entrance, increment the token and invalidate the
+         requestAnimationFrame before it could ever add .is-visible. */
+      hotspotHeroTitlePendingKey = key;
+      hotspotHeroTitlePendingText = title;
+      hotspotHeroTitleKey = key;
+      hotspotHeroTitle.textContent = title;
+      hotspotHeroTitle.classList.remove("is-visible", "is-exiting-left", "is-sequence-fading");
+
+      /* Paint once at the off-right/transparent starting state, then commit the
+         visible state on the following frame. */
+      void hotspotHeroTitle.offsetWidth;
+      requestAnimationFrame(() => {
+        if (token !== hotspotHeroTitleSwapToken) return;
+        hotspotHeroTitle.classList.add("is-visible");
+        hotspotHeroTitlePendingKey = "";
+        hotspotHeroTitlePendingText = "";
+      });
+    }
+
+    function showHotspotHeroTitle(hotspot) {
+      if (!hotspotHeroTitle || !hotspot) return;
+      if (
+        !hotspotConnectorEnabled ||
+        !hotspotsVisible ||
+        sequencePlaying ||
+        activeSequence ||
+        sequencePreparing
+      ) return;
+
+      const title = getHotspotHeroTitleText(hotspot);
+      const key = normalizeHotspotKey(title);
+      if (!title || !key) return;
+
+      /* updateHotspotConnector() runs every animation frame. Do not restart or
+         invalidate an entrance/swap that is already waiting to complete. */
+      if (hotspotHeroTitlePendingKey === key) return;
+
+      if (key === hotspotHeroTitleKey) {
+        if (hotspotHeroTitle.classList.contains("is-visible")) return;
+
+        cancelHotspotHeroTitleSwapTimer();
+        hotspotHeroTitlePendingKey = key;
+        hotspotHeroTitlePendingText = title;
+        const token = ++hotspotHeroTitleSwapToken;
+        enterHotspotHeroTitle(title, key, token);
+        return;
+      }
+
+      cancelHotspotHeroTitleSwapTimer();
+      const token = ++hotspotHeroTitleSwapToken;
+      const hadVisibleTitle = Boolean(hotspotHeroTitleKey || hotspotHeroTitle.textContent);
+
+      hotspotHeroTitlePendingKey = key;
+      hotspotHeroTitlePendingText = title;
+
+      if (!hadVisibleTitle) {
+        enterHotspotHeroTitle(title, key, token);
+        return;
+      }
+
+      /* Existing title exits left first. Because pendingKey is set immediately,
+         the 60-fps update loop cannot keep rescheduling this timeout forever. */
+      hotspotHeroTitle.classList.remove("is-visible", "is-sequence-fading");
+      hotspotHeroTitle.classList.add("is-exiting-left");
+
+      hotspotHeroTitleSwapTimer = setTimeout(() => {
+        hotspotHeroTitleSwapTimer = null;
+        if (token !== hotspotHeroTitleSwapToken) return;
+        if (hotspotHeroTitlePendingKey !== key) return;
+        enterHotspotHeroTitle(title, key, token);
+      }, 285);
     }
 
     function resetThumbnailElement(element) {
@@ -6124,6 +6380,7 @@
         while the panorama camera is moving to the sequence alignment.
       */
       if (sequenceConnectorRetractActive && sequenceConnectorRetractHotspot) {
+        fadeHotspotHeroTitleForSequence();
         const circleRect = hotspotFocusCircle.getBoundingClientRect();
         const circleCenterX = circleRect.left + circleRect.width / 2;
         const circleCenterY = circleRect.top + circleRect.height / 2;
@@ -6157,13 +6414,15 @@
         return;
       }
 
-      if (
-        !hotspotConnectorEnabled ||
-        !hotspotsVisible ||
-        sequencePlaying ||
-        activeSequence ||
-        sequencePreparing
-      ) {
+      if (sequencePlaying || activeSequence || sequencePreparing) {
+        fadeHotspotHeroTitleForSequence();
+        hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
+        hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB, hotspotConnectorPulseB);
+        return;
+      }
+
+      if (!hotspotConnectorEnabled || !hotspotsVisible) {
+        hideHotspotHeroTitle();
         hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
         hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB, hotspotConnectorPulseB);
         return;
@@ -6172,6 +6431,7 @@
       const focusHotspot = getClosestVisibleHotspotToCenter();
 
       if (!focusHotspot) {
+        hideHotspotHeroTitle();
         hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
         hideConnectorPair(hotspotConnectorLineB, hotspotConnectorDotB, hotspotConnectorPulseB);
         return;
@@ -6184,6 +6444,7 @@
         connectorTransitioning = true;
         setActiveHotspotButton(connectorActiveHotspot);
         updateHotspotThumbnail(connectorActiveHotspot);
+        showHotspotHeroTitle(connectorActiveHotspot);
       } else if (
         !startupThumbnailRevealActive &&
         focusHotspot !== connectorActiveHotspot
@@ -6201,7 +6462,12 @@
         connectorTransitioning = true;
         setActiveHotspotButton(connectorActiveHotspot);
         updateHotspotThumbnail(connectorActiveHotspot);
+        showHotspotHeroTitle(connectorActiveHotspot);
       }
+
+      /* If the focus itself did not change (for example after returning from a
+         sequence), this restores the same title without forcing another swap. */
+      showHotspotHeroTitle(connectorActiveHotspot);
 
       const circleRect = hotspotFocusCircle.getBoundingClientRect();
       const circleCenterX = circleRect.left + circleRect.width / 2;
@@ -7857,6 +8123,7 @@
       }
 
       syncParentScrollParallax();
+      updateHotspotHeroTitleLayout();
       updatePanorama();
       updateSky();
       updateReflection();
@@ -8774,6 +9041,7 @@
 
       setPanToggleVisible(false);
       setActiveHotspotButton(null);
+      fadeHotspotHeroTitleForSequence();
       stopHotspotFocusArcAnimation();
 
       if (!thumbnailsWereOpenBeforeSequence) {
@@ -8892,6 +9160,7 @@
         connectorTransitioning = true;
 
         if (connectorActiveHotspot) {
+          showHotspotHeroTitle(connectorActiveHotspot);
           [hotspotFocusThumbnailA, hotspotFocusThumbnailB].forEach((element) => {
             element.style.removeProperty("opacity");
           });
@@ -8915,6 +9184,7 @@
       hotspotConnectorEnabled = !hotspotConnectorEnabled;
 
       if (!hotspotConnectorEnabled) {
+        hideHotspotHeroTitle();
         hotspotFocusCircle.classList.add("is-disabled");
         setHotspotFocusCloseToShow();
         hideConnectorPair(hotspotConnectorLineA, hotspotConnectorDotA, hotspotConnectorPulseA);
@@ -8929,6 +9199,7 @@
         connectorTransitioning = true;
 
         if (connectorActiveHotspot) {
+          showHotspotHeroTitle(connectorActiveHotspot);
           [hotspotFocusThumbnailA, hotspotFocusThumbnailB].forEach((element) => {
             element.style.removeProperty("opacity");
           });
