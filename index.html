@@ -2721,6 +2721,13 @@
     */
     let hotspotHeroTitleDirectHoverHotspot = null;
     let hotspotHeroTitleParentHoverHotspot = null;
+    /*
+      The left PRODUCTS rail may request a hover immediately, but its large title
+      is deliberately withheld until the rail's panorama preview pan has fully
+      arrived. This keeps the lettering from travelling across the scene with the
+      camera. Direct hotspot hover inside the panorama remains immediate.
+    */
+    let hotspotHeroTitleParentHoverReadyHotspot = null;
 
     /*
       Once a product is explicitly selected, keep the desktop PRODUCTS rail
@@ -5140,9 +5147,25 @@
       const travel = Math.abs(targetOffset - currentOffset);
       const previewDuration = Math.max(1350, Math.min(1950, 1200 + travel * 0.42));
 
+      /*
+        For a left-rail hover, do not reveal the large product title while the
+        panorama is travelling. Only mark this rail hover as title-ready after
+        the preview pan has completely settled. If the mouse left the item or
+        moved to another item during the pan, the requested hotspot will no
+        longer match and nothing is shown.
+      */
+      hotspotHeroTitleParentHoverReadyHotspot = null;
+      syncHotspotHeroTitleHoverState();
+
       moveToFrame(
         hotspot.frame,
-        () => scheduleAutoRotateResume(1350),
+        () => {
+          if (hotspotHeroTitleParentHoverHotspot === hotspot) {
+            hotspotHeroTitleParentHoverReadyHotspot = hotspot;
+            syncHotspotHeroTitleHoverState();
+          }
+          scheduleAutoRotateResume(1350);
+        },
         false,
         destinationOffsetX,
         null,
@@ -5478,12 +5501,19 @@
       if (data.type === parentHoverProductType) {
         const hotspot = findHotspotByParentProductKey(data.key || data.title);
         hotspotHeroTitleParentHoverHotspot = hotspot || null;
+        hotspotHeroTitleParentHoverReadyHotspot = null;
+        /*
+          The parent rail hover only declares which product is being hovered.
+          previewHotspotFromParentMenu() promotes it to the visible title after
+          the delayed camera preview has actually finished.
+        */
         syncHotspotHeroTitleHoverState();
         return;
       }
 
       if (data.type === parentHoverClearType) {
         hotspotHeroTitleParentHoverHotspot = null;
+        hotspotHeroTitleParentHoverReadyHotspot = null;
         syncHotspotHeroTitleHoverState();
         return;
       }
@@ -6170,10 +6200,13 @@
         return;
       }
 
-      /* The parent rail wins while it is hovered. Direct hotspot hover takes over
-         again as soon as the mouse returns to the panorama. */
+      /*
+        Direct hotspot hover remains immediate. A parent PRODUCTS-rail hover only
+        wins after its panorama preview pan has finished and marked that hover
+        ready.
+      */
       const hoverHotspot =
-        hotspotHeroTitleParentHoverHotspot || hotspotHeroTitleDirectHoverHotspot;
+        hotspotHeroTitleParentHoverReadyHotspot || hotspotHeroTitleDirectHoverHotspot;
 
       if (hoverHotspot) {
         showHotspotHeroTitle(hoverHotspot);
@@ -8873,6 +8906,7 @@
 
       hotspotHeroTitleDirectHoverHotspot = null;
       hotspotHeroTitleParentHoverHotspot = null;
+      hotspotHeroTitleParentHoverReadyHotspot = null;
       fadeHotspotHeroTitleForSequence();
 
       /*
