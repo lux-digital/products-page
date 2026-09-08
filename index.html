@@ -244,9 +244,9 @@
       margin: 0;
       padding: 0;
       color: #fff;
-      font-family: "Futura PT", "Futura PT Bold", "Futura", "Arial Black", Arial, sans-serif;
+      font-family: "Futura PT Demi", "Futura PT", "Futura", "Helvetica Neue", Arial, sans-serif;
       font-size: 150px;
-      font-weight: 800;
+      font-weight: 600;
       line-height: 0.92;
       letter-spacing: -0.018em;
       word-spacing: 0.10em;
@@ -263,9 +263,52 @@
         opacity 0.28s ease-out;
     }
 
+    /*
+      Lightweight motion-blur impression. This deliberately avoids CSS filter: blur(),
+      which can force a large offscreen surface to be re-rasterized while the title moves.
+      Two faint duplicate glyph layers trail a few pixels to the right instead. They inherit
+      the parent's transform, so the browser can keep the actual movement compositor-friendly.
+    */
+    #hotspotHeroTitle::before,
+    #hotspotHeroTitle::after {
+      content: attr(data-motion-text);
+      position: absolute;
+      left: 0;
+      top: 0;
+      margin: 0;
+      padding: 0;
+      color: #fff;
+      font: inherit;
+      line-height: inherit;
+      letter-spacing: inherit;
+      word-spacing: inherit;
+      white-space: nowrap;
+      pointer-events: none;
+      text-shadow: none;
+      will-change: opacity, transform;
+    }
+
+    #hotspotHeroTitle::before {
+      opacity: 0.16;
+      transform: translate3d(6px, 0, 0);
+      transition: opacity 0.22s ease-out;
+    }
+
+    #hotspotHeroTitle::after {
+      opacity: 0.08;
+      transform: translate3d(12px, 0, 0);
+      transition: opacity 0.18s ease-out;
+    }
+
     #hotspotHeroTitle.is-visible {
       opacity: 0.78;
       transform: translate3d(0, -50%, 0);
+    }
+
+    /* Let the little motion trail evaporate during the first part of the entrance. */
+    #hotspotHeroTitle.is-visible::before,
+    #hotspotHeroTitle.is-visible::after {
+      opacity: 0;
     }
 
     /* Normal focus change: old title glides left while the next one enters
@@ -284,6 +327,12 @@
       opacity: 0;
       transform: translate3d(0, -50%, 0);
       transition: opacity 0.30s ease-out;
+    }
+
+    /* Sequence playback uses a clean fade, not the directional motion trail. */
+    #hotspotHeroTitle.is-sequence-fading::before,
+    #hotspotHeroTitle.is-sequence-fading::after {
+      opacity: 0 !important;
     }
 
     #foregroundCanvas {
@@ -5997,6 +6046,7 @@
         if (hotspotHeroTitlePendingKey) return;
 
         hotspotHeroTitle.textContent = "";
+        hotspotHeroTitle.removeAttribute("data-motion-text");
         hotspotHeroTitleKey = "";
         hotspotHeroTitle.classList.remove("is-exiting-left");
       }, 380);
@@ -6042,6 +6092,7 @@
       hotspotHeroTitlePendingText = title;
       hotspotHeroTitleKey = key;
       hotspotHeroTitle.textContent = title;
+      hotspotHeroTitle.setAttribute("data-motion-text", title);
       hotspotHeroTitle.classList.remove("is-visible", "is-exiting-left", "is-sequence-fading");
 
       /* Paint once at the off-right/transparent starting state, then commit the
