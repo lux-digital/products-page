@@ -6632,6 +6632,28 @@
         */
         connectorOutgoingHotspot = connectorActiveHotspot;
         connectorActiveHotspot = focusHotspot;
+
+        /*
+          A title revealed by hovering the desktop PRODUCTS rail belongs only to
+          the hotspot that the thumbnail connector was pointing at when the rail
+          preview finished. Automatic panning can resume while the mouse remains
+          parked over that rail item; as soon as the connector genuinely switches
+          to a different hotspot, retire that old rail-hover title so the title
+          never contradicts the thumbnail/connector target.
+
+          Keep hotspotHeroTitleParentHoverHotspot itself intact so the parent hover
+          state remains truthful. Only the one-shot "ready to display" state is
+          cleared; it will not be shown again until the parent initiates another
+          preview hover.
+        */
+        if (
+          hotspotHeroTitleParentHoverReadyHotspot &&
+          hotspotHeroTitleParentHoverReadyHotspot !== connectorActiveHotspot
+        ) {
+          hotspotHeroTitleParentHoverReadyHotspot = null;
+          syncHotspotHeroTitleHoverState();
+        }
+
         connectorTransitionStart = now;
         connectorTransitioning = true;
         setActiveHotspotButton(connectorActiveHotspot);
