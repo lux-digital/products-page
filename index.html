@@ -5005,7 +5005,8 @@
         x: 97.18,
         y: 27.16,
         title: "BOARD+BATTEN",
-        text: "BOARD+BATTEN"
+        text: "BOARD+BATTEN",
+        thumbnailName: "BOARD + BATTEN"
       }
     ];
 
@@ -5887,9 +5888,7 @@
       const uniqueNames = Array.from(
         new Set(
           hotspots
-            .map((hotspot) =>
-              (hotspot.text || hotspot.label || hotspot.title || "").trim()
-            )
+            .map((hotspot) => getHotspotThumbnailName(hotspot))
             .filter(Boolean)
         )
       );
@@ -6054,7 +6053,13 @@
     }
 
     function getHotspotThumbnailName(hotspot) {
-      return (hotspot?.text || hotspot?.label || hotspot?.title || "").trim();
+      return (
+        hotspot?.thumbnailName ||
+        hotspot?.text ||
+        hotspot?.label ||
+        hotspot?.title ||
+        ""
+      ).trim();
     }
 
     function getHotspotHeroTitleText(hotspot) {
