@@ -768,7 +768,7 @@
     }
 
     /*
-      METAL CRAFT and SOFFIT use profile-page navigation with multiple Lottie options.
+      METAL CRAFT, SOFFIT, and NEO LUMBER use profile-page navigation with multiple Lottie options.
       The outer dots stay at 30% white; the smaller center dot animates
       between positions to show the currently selected option.
     */
@@ -2056,48 +2056,77 @@
 
 
     /*
-      NEO LUMBER's Lottie artwork has a large transparent band beneath the
-      visible profile drawing. Pull its supporting copy into that unused area,
-      then preserve a deliberate, separate gap before MORE INFO.
+      NEO LUMBER uses one fixed layout for all three profile Lotties.
+      Profiles 02 and 03 use more of the vertical canvas, so the original page
+      now uses the same safer spacing too. Keeping these values identical on
+      every NEO LUMBER page prevents the card from resizing during navigation.
     */
     #sequenceLottieCard.is-neo-lumber #sequenceContextText {
-      /* Keep the copy close to the artwork, but leave a visible breathing gap. */
-      margin: clamp(-94px, -9.5vh, -58px) 22px 0;
+      margin: clamp(-68px, -6.8vh, -46px) 22px 0;
     }
 
-    #sequenceLottieCard.is-neo-lumber #sequenceLearnMore {
-      margin-top: 40px;
+    /*
+      For NEO LUMBER the pagination element is moved in JavaScript so the real
+      document order is: Lottie -> description -> dots -> MORE INFO. No visual
+      translate is needed, so the dots cannot drift into the copy or button.
+    */
+    #sequenceLottieCard.is-neo-lumber #metalCraftPagination {
+      margin-top: 18px;
+      transform: none;
+    }
+
+    #sequenceLottieCard.is-neo-lumber #sequenceLearnMore,
+    #sequenceLottieCard.is-neo-lumber.is-multi-lottie #sequenceLearnMore {
+      margin-top: 20px;
     }
 
     @media (hover: none) and (pointer: coarse),
     (max-width: 700px) {
       #sequenceLottieCard.is-neo-lumber #sequenceContextText {
-        margin: clamp(-62px, -8dvh, -34px) 10px 0;
+        margin: clamp(-44px, -5.8dvh, -24px) 10px 0;
       }
 
-      #sequenceLottieCard.is-neo-lumber #sequenceLearnMore {
-        margin-top: 30px;
+      #sequenceLottieCard.is-neo-lumber #metalCraftPagination {
+        margin-top: 14px;
+        transform: none;
+      }
+
+      #sequenceLottieCard.is-neo-lumber #sequenceLearnMore,
+      #sequenceLottieCard.is-neo-lumber.is-multi-lottie #sequenceLearnMore {
+        margin-top: 16px;
       }
     }
 
     @media (hover: none) and (pointer: coarse) and (orientation: landscape),
     (max-height: 600px) and (orientation: landscape) {
       #sequenceLottieCard.is-neo-lumber #sequenceContextText {
-        margin: clamp(-42px, -7dvh, -22px) 10px 0;
+        margin: clamp(-26px, -4.2dvh, -12px) 10px 0;
       }
 
-      #sequenceLottieCard.is-neo-lumber #sequenceLearnMore {
-        margin-top: 26px;
+      #sequenceLottieCard.is-neo-lumber #metalCraftPagination {
+        margin-top: 10px;
+        transform: none;
+      }
+
+      #sequenceLottieCard.is-neo-lumber #sequenceLearnMore,
+      #sequenceLottieCard.is-neo-lumber.is-multi-lottie #sequenceLearnMore {
+        margin-top: 12px;
       }
     }
 
     @media (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 430px) {
       #sequenceLottieCard.is-neo-lumber #sequenceContextText {
-        margin-top: clamp(-28px, -6dvh, -16px);
+        margin-top: clamp(-16px, -3.6dvh, -8px);
       }
 
-      #sequenceLottieCard.is-neo-lumber #sequenceLearnMore {
-        margin-top: 22px;
+      #sequenceLottieCard.is-neo-lumber #metalCraftPagination {
+        margin-top: 8px;
+        transform: none;
+      }
+
+      #sequenceLottieCard.is-neo-lumber #sequenceLearnMore,
+      #sequenceLottieCard.is-neo-lumber.is-multi-lottie #sequenceLearnMore {
+        margin-top: 10px;
       }
     }
 
@@ -2656,6 +2685,7 @@
     const sequenceFramePreloader = document.getElementById("sequenceFramePreloader");
     const sequenceLottiePanel = document.getElementById("sequenceLottiePanel");
     const sequenceLottieContainer = document.getElementById("sequenceLottie");
+    const sequenceVisualGroup = document.getElementById("sequenceVisualGroup");
     const sequenceLottieCard = document.getElementById("sequenceLottieCard");
     const sequenceContextText = document.getElementById("sequenceContextText");
     const sequenceLearnMore = document.getElementById("sequenceLearnMore");
@@ -3219,9 +3249,16 @@
       { key: "soffit04", label: "SOFFIT 04", path: "lottie/SOFFIT%2004/SOFFIT%2004.json" }
     ];
 
+    const neoLumberLottiePages = [
+      { key: "neoLumber", label: "NEO LUMBER", path: "lottie/NEO%20LUMBER/NEO%20LUMBER.json" },
+      { key: "neoLumber02", label: "NEO LUMBER 02", path: "lottie/NEO%20LUMBER%2002/NEO%20LUMBER%2002.json" },
+      { key: "neoLumber03", label: "NEO LUMBER 03", path: "lottie/NEO%20LUMBER%2003/NEO%20LUMBER%2003.json" }
+    ];
+
     const multiLottiePageSets = new Map([
       ["metalCraft", { label: "Metal Craft", pages: metalCraftLottiePages }],
-      ["soffit", { label: "Soffit", pages: soffitLottiePages }]
+      ["soffit", { label: "Soffit", pages: soffitLottiePages }],
+      ["neoLumber", { label: "NEO LUMBER", pages: neoLumberLottiePages }]
     ]);
 
     let metalCraftPageIndex = 0;
@@ -6965,9 +7002,28 @@
       return Boolean(getMultiLottiePageSet(config));
     }
 
+    function setNeoLumberPaginationPlacement(useNeoLumberLayout) {
+      if (!metalCraftPagination || !sequenceVisualGroup || !sequenceContextText) return;
+
+      if (useNeoLumberLayout) {
+        /*
+          NEO LUMBER needs its dots below the copy. Re-parenting the existing
+          shared pagination element gives it the correct physical layout order
+          instead of relying on transforms that can overlap adjacent content.
+        */
+        if (metalCraftPagination.previousElementSibling !== sequenceContextText) {
+          sequenceContextText.insertAdjacentElement("afterend", metalCraftPagination);
+        }
+      } else if (metalCraftPagination.parentElement !== sequenceVisualGroup) {
+        /* Restore the original METAL CRAFT / SOFFIT structure. */
+        sequenceVisualGroup.appendChild(metalCraftPagination);
+      }
+    }
+
     function setMultiLottieMode(enabled) {
       sequenceLottieCard.classList.toggle("is-multi-lottie", enabled);
       metalCraftPagination.setAttribute("aria-hidden", enabled ? "false" : "true");
+      setNeoLumberPaginationPlacement(Boolean(enabled && activeSequence?.key === "neoLumber"));
 
       if (!enabled) {
         metalCraftTransitioning = false;
@@ -6986,6 +7042,9 @@
       } else {
         metalCraftPageIndex = 0;
       }
+
+      /* Keep the same physical NEO LUMBER layout on every profile page. */
+      setNeoLumberPaginationPlacement(Boolean(activeSequence?.key === "neoLumber"));
 
       metalCraftDots.forEach((dot, index) => {
         dot.hidden = index >= pages.length;
@@ -7181,7 +7240,7 @@
     async function preparePrimaryMultiLottieForPanoramaReturn() {
       /*
         Secondary profile Lotties only switch between product pages. When
-        leaving either METAL CRAFT or SOFFIT, restore that hotspot's original
+        leaving METAL CRAFT, SOFFIT, or NEO LUMBER, restore that hotspot's original
         Lottie at its completed frame before beginning the normal reverse.
       */
       const pageSet = getMultiLottiePageSet();
@@ -8712,7 +8771,7 @@
       freezePanoramaBackground();
 
       /*
-        A secondary METAL CRAFT or SOFFIT page must never be used for the
+        A secondary METAL CRAFT, SOFFIT, or NEO LUMBER page must never be used for the
         panorama-return animation. Restore the hotspot's original Lottie at
         its completed frame, then reverse only that primary animation.
       */
